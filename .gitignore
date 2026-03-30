@@ -1,0 +1,5 @@
+.DS_Store
+.air/
+dist/
+node_modules/
+vite.config.d.ts
