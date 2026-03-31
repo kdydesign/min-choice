@@ -25,14 +25,23 @@ interface OpenAiConfig {
   model: string;
 }
 
+interface AiSubstituteItem {
+  ingredient: string;
+  substitutes: string[];
+}
+
 interface AiMealResponse {
   selectedMenu: string;
   recommendation: string;
   missingIngredients: string[];
   missingIngredientExplanation: string;
-  substitutes: Record<string, string[]>;
+  substitutes: AiSubstituteItem[];
   recipe: string[];
   caution: string;
+}
+
+interface NormalizedAiMealResponse extends Omit<AiMealResponse, "substitutes"> {
+  substitutes: Record<string, string[]>;
 }
 
 interface AiGenerationOutcome {
@@ -58,10 +67,18 @@ const AI_RESPONSE_SCHEMA = {
     },
     missingIngredientExplanation: { type: "string" },
     substitutes: {
-      type: "object",
-      additionalProperties: {
-        type: "array",
-        items: { type: "string" }
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ingredient: { type: "string" },
+          substitutes: {
+            type: "array",
+            items: { type: "string" }
+          }
+        },
+        required: ["ingredient", "substitutes"]
       }
     },
     recipe: {
@@ -102,7 +119,7 @@ function getOpenAiConfig(): OpenAiConfig | null {
 
   return {
     apiKey,
-    model: Deno.env.get("OPENAI_MODEL")?.trim() || "gpt-4o-mini"
+    model: Deno.env.get("OPENAI_MODEL")?.trim() || "gpt-4.1"
   };
 }
 
@@ -120,12 +137,18 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-function isStringArrayRecord(value: unknown): value is Record<string, string[]> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+function isAiSubstituteItems(value: unknown): value is AiSubstituteItem[] {
+  if (!Array.isArray(value)) {
     return false;
   }
 
-  return Object.values(value).every((entry) => isStringArray(entry));
+  return value.every(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof item.ingredient === "string" &&
+      isStringArray(item.substitutes)
+  );
 }
 
 function isAiMealResponse(value: unknown): value is AiMealResponse {
@@ -138,24 +161,35 @@ function isAiMealResponse(value: unknown): value is AiMealResponse {
     typeof value.recommendation === "string" &&
     isStringArray(value.missingIngredients) &&
     typeof value.missingIngredientExplanation === "string" &&
-    isStringArrayRecord(value.substitutes) &&
+    isAiSubstituteItems(value.substitutes) &&
     isStringArray(value.recipe) &&
     typeof value.caution === "string"
   );
 }
 
-function normalizeAiMealResponse(response: AiMealResponse): AiMealResponse {
+function mapSubstitutesToItems(substitutes: Record<string, string[]>) {
+  return Object.entries(substitutes).map(([ingredient, items]) => ({
+    ingredient,
+    substitutes: items
+  }));
+}
+
+function normalizeSubstituteItems(items: AiSubstituteItem[]) {
+  return Object.fromEntries(
+    items.map((item) => [
+      normalizeIngredient(item.ingredient),
+      uniqueIngredients(item.substitutes)
+    ])
+  );
+}
+
+function normalizeAiMealResponse(response: AiMealResponse): NormalizedAiMealResponse {
   return {
     selectedMenu: response.selectedMenu.trim(),
     recommendation: response.recommendation.trim(),
     missingIngredients: uniqueIngredients(response.missingIngredients),
     missingIngredientExplanation: response.missingIngredientExplanation.trim(),
-    substitutes: Object.fromEntries(
-      Object.entries(response.substitutes).map(([ingredient, substitutes]) => [
-        normalizeIngredient(ingredient),
-        uniqueIngredients(substitutes)
-      ])
-    ),
+    substitutes: normalizeSubstituteItems(response.substitutes),
     recipe: response.recipe.map((step) => step.trim()).filter(Boolean).slice(0, 3),
     caution: response.caution.trim()
   };
@@ -178,7 +212,7 @@ function buildAllowedValueMap(items: string[]) {
 }
 
 function validateAiStructuredFields(
-  response: AiMealResponse,
+  response: NormalizedAiMealResponse,
   selectedResult: MealRecommendation,
   candidates: MealRecommendation[]
 ) {
@@ -287,14 +321,14 @@ function buildAiRequestPayload(input: {
     normalizedInputIngredients: input.normalizedInputIngredients,
     selectedMenu: input.selectedResult.name,
     expectedMissingIngredients: input.selectedResult.missingIngredients,
-    expectedSubstitutes: input.selectedResult.substitutes,
+    expectedSubstitutes: mapSubstitutesToItems(input.selectedResult.substitutes),
     candidates: input.candidates.slice(0, MAX_CANDIDATES).map((candidate) => ({
       name: candidate.name,
       cookingStyle: candidate.cookingStyle,
       mainProtein: candidate.mainProtein,
       usedIngredients: candidate.usedIngredients,
       missingIngredients: candidate.missingIngredients,
-      substitutes: candidate.substitutes,
+      substitutes: mapSubstitutesToItems(candidate.substitutes),
       textureNote: candidate.textureNote,
       caution: candidate.caution
     }))
@@ -308,7 +342,8 @@ function buildSystemPrompt() {
     "반드시 JSON만 반환하세요.",
     "selectedMenu는 입력으로 받은 selectedMenu와 정확히 동일해야 합니다.",
     "missingIngredients는 입력의 expectedMissingIngredients와 동일하게 유지하세요.",
-    "substitutes는 expectedSubstitutes 범위 안에서만 작성하세요.",
+    "substitutes는 ingredient와 substitutes 배열을 가진 객체 목록이어야 합니다.",
+    "substitutes의 ingredient와 substitutes 값은 expectedSubstitutes 범위 안에서만 작성하세요.",
     "추천 문구와 조리법, 주의사항은 12개월 아이에게 안전하고 부드러운 식감 기준으로 작성하세요.",
     "알레르기 재료나 위험한 표현은 절대 포함하지 마세요.",
     "recipe는 보호자가 바로 따라 할 수 있는 짧은 3단계 배열이어야 합니다."
