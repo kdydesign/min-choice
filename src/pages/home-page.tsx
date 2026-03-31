@@ -4,11 +4,13 @@ import {
   useQuery,
   useQueryClient
 } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { ChildProfilesSection } from "../features/children/components/child-profiles-section";
 import {
   deleteChildProfile,
   listChildProfiles,
-  saveChildProfile
+  saveChildProfile,
+  type SaveChildProfileInput
 } from "../features/children/api/child-profile-repository";
 import {
   clearMealDraft,
@@ -18,24 +20,29 @@ import {
 import type { ChildProfile, DailyMealPlan, MealDraft, MealType } from "../types/domain";
 import { emptyMealDraft, getIngredientConflicts } from "../features/ingredients/lib/ingredient-utils";
 import { useAppStore } from "../store/use-app-store";
-import { createId } from "../lib/create-id";
 import { MealInputSection } from "../features/meal-plans/components/meal-input-section";
-import { buildDailyMealPlan } from "../features/meal-plans/lib/plan-generator";
 import {
   deleteMealPlansByChild,
   listMealPlansByChild,
-  saveMealPlan
+  saveMealPlan,
+  type SaveMealPlanInput
 } from "../features/meal-plans/api/meal-plan-repository";
+import { generateMealPlan } from "../features/meal-plans/api/generate-meal-plan-service";
 import { MealResultsSection } from "../features/meal-plans/components/meal-results-section";
 import { MealHistorySection } from "../features/meal-plans/components/meal-history-section";
 import { MEAL_TYPES } from "../types/domain";
+import { normalizeIngredients } from "../features/ingredients/api/normalize-ingredients-service";
+import { PwaStatusBanner } from "../features/pwa/components/pwa-status-banner";
+import { useAuth } from "../features/auth/hooks/use-auth";
 
 export function HomePage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const selectedChildId = useAppStore((state) => state.selectedChildId);
   const selectedPlanId = useAppStore((state) => state.selectedPlanId);
   const setSelectedChild = useAppStore((state) => state.setSelectedChild);
   const setSelectedPlan = useAppStore((state) => state.setSelectedPlan);
+  const { identityLabel, isAnonymous, providerLabel, signOut } = useAuth();
 
   const [editingProfile, setEditingProfile] = useState<ChildProfile | null>(null);
   const [mealDraft, setMealDraft] = useState<MealDraft>(emptyMealDraft());
@@ -145,16 +152,17 @@ export function HomePage() {
   ) {
     const now = new Date().toISOString();
     const original = profiles.find((profile) => profile.id === editingId);
-
-    await profileMutation.mutateAsync({
-      id: editingId ?? createId("child"),
+    const nextProfile: SaveChildProfileInput = {
+      id: editingId,
       name: payload.name,
       ageMonths: payload.ageMonths,
       birthDate: payload.birthDate,
       allergies: payload.allergies,
       createdAt: original?.createdAt ?? now,
       updatedAt: now
-    });
+    };
+
+    await profileMutation.mutateAsync(nextProfile);
   }
 
   function handleChangeMealDraft(mealType: MealType, ingredients: string[]) {
@@ -186,15 +194,14 @@ export function HomePage() {
       return;
     }
 
-    const normalizedDraft = MEAL_TYPES.reduce(
-      (accumulator, mealType) => {
-        accumulator[mealType] = mealDraft[mealType];
-        return accumulator;
-      },
-      { ...emptyMealDraft() } as MealDraft
-    );
+    const normalizedDraft = {
+      breakfast: (await normalizeIngredients(mealDraft.breakfast)).map((item) => item.standardKey),
+      lunch: (await normalizeIngredients(mealDraft.lunch)).map((item) => item.standardKey),
+      dinner: (await normalizeIngredients(mealDraft.dinner)).map((item) => item.standardKey),
+      updatedAt: new Date().toISOString()
+    } satisfies MealDraft;
 
-    const plan = buildDailyMealPlan({
+    const plan = await generateMealPlan({
       child: selectedChild,
       mealInputs: {
         breakfast: normalizedDraft.breakfast,
@@ -203,12 +210,23 @@ export function HomePage() {
       }
     });
 
-    await savePlanMutation.mutateAsync(plan);
+    const nextPlanPayload: SaveMealPlanInput = {
+      plan,
+      sourceMealInputs: {
+        breakfast: mealDraft.breakfast,
+        lunch: mealDraft.lunch,
+        dinner: mealDraft.dinner
+      }
+    };
+
+    await savePlanMutation.mutateAsync(nextPlanPayload);
     saveMealDraft(selectedChild.id, normalizedDraft);
+    setMealDraft(normalizedDraft);
   }
 
   return (
     <div className="app-shell">
+      <PwaStatusBanner />
       <header className="hero">
         <div className="hero-copy">
           <span className="badge">Vite + React MVP</span>
@@ -223,6 +241,20 @@ export function HomePage() {
               ? `${selectedChild.ageMonths}개월 · 알레르기 ${selectedChild.allergies.length ? selectedChild.allergies.join(", ") : "없음"}`
               : "프로필이 없으면 아래에서 바로 추가할 수 있어요."}
           </span>
+          <div className="auth-summary">
+            <span className="inline-chip">{providerLabel}</span>
+            <span className="subtle">{identityLabel}</span>
+          </div>
+          <div className="card-actions">
+            {isAnonymous ? (
+              <button type="button" className="secondary small" onClick={() => navigate("/login")}>
+                계정 연결
+              </button>
+            ) : null}
+            <button type="button" className="ghost small" onClick={() => void signOut()}>
+              {isAnonymous ? "익명 종료" : "로그아웃"}
+            </button>
+          </div>
         </div>
       </header>
 

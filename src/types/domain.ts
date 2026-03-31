@@ -26,6 +26,13 @@ export interface MealDraft {
   updatedAt: string | null;
 }
 
+export interface NormalizedIngredientItem {
+  input: string;
+  standardKey: string;
+  displayName: string;
+  isKnown: boolean;
+}
+
 export interface MenuDefinition {
   id: string;
   name: string;

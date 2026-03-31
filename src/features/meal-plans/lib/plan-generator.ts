@@ -17,7 +17,19 @@ import {
   MEAL_LABELS,
   MENU_CATALOG
 } from "../../menus/data/menu-catalog";
+import { guardGeneratedMealContent } from "./ai-response-guard";
 import { generateMealNarrative } from "./meal-narrative";
+
+export interface DailyMealPlanWithCandidates {
+  plan: DailyMealPlan;
+  candidates: Record<MealType, MealRecommendation[]>;
+}
+
+interface BuildDailyMealPlanInput {
+  child: ChildProfile;
+  mealInputs: Record<MealType, string[]>;
+  menuCatalog?: MenuDefinition[];
+}
 
 function createId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -168,6 +180,17 @@ function buildRecommendation(
     recipeSummary: menu.recipeSummary,
     caution: menu.caution
   });
+  const guardedNarrative = guardGeneratedMealContent({
+    generated: narrative,
+    mealType,
+    menuName: menu.name,
+    cookingStyle: menu.cookingStyle,
+    usedIngredients,
+    missingIngredients,
+    recipeSummary: menu.recipeSummary,
+    caution: menu.caution,
+    allergies: [...allergySet]
+  });
 
   return {
     id: menu.id,
@@ -176,10 +199,10 @@ function buildRecommendation(
     mainProtein: menu.mainProtein,
     description: menu.description,
     textureNote: menu.textureNote,
-    caution: narrative.caution,
-    recommendationText: narrative.recommendationText,
-    recipeSummary: narrative.recipeSummary,
-    missingIngredientExplanation: narrative.missingIngredientExplanation,
+    caution: guardedNarrative.caution,
+    recommendationText: guardedNarrative.recommendationText,
+    recipeSummary: guardedNarrative.recipeSummary,
+    missingIngredientExplanation: guardedNarrative.missingIngredientExplanation,
     usedIngredients,
     missingIngredients,
     substitutes,
@@ -187,8 +210,8 @@ function buildRecommendation(
     alternatives: [] as string[],
     inputIngredients: safeIngredients,
     allIngredients,
-    promptVersion: narrative.promptVersion,
-    isFallback: narrative.isFallback
+    promptVersion: guardedNarrative.promptVersion,
+    isFallback: guardedNarrative.isFallback
   } satisfies MealRecommendation;
 }
 
@@ -197,10 +220,12 @@ function getMealCandidates(
   safeIngredients: string[],
   allergySet: Set<string>,
   excludedAllergyIngredients: string[],
+  menuCatalog: MenuDefinition[],
   seenStyles: Set<string>,
   seenProteins: Set<string>
 ) {
-  return MENU_CATALOG.filter((menu) => menu.mealTypes.includes(mealType))
+  return menuCatalog
+    .filter((menu) => menu.mealTypes.includes(mealType))
     .filter((menu) => !hasAllergyConflict(menu, allergySet))
     .map((menu) => ({
       recommendation: buildRecommendation(
@@ -217,10 +242,9 @@ function getMealCandidates(
     .map((candidate) => candidate.recommendation);
 }
 
-export function buildDailyMealPlan(input: {
-  child: ChildProfile;
-  mealInputs: Record<MealType, string[]>;
-}): DailyMealPlan {
+export function buildDailyMealPlanWithCandidates(
+  input: BuildDailyMealPlanInput
+): DailyMealPlanWithCandidates {
   const seenStyles = new Set<string>();
   const seenProteins = new Set<string>();
   const ageMonths = getAgeMonths(input.child);
@@ -228,6 +252,8 @@ export function buildDailyMealPlan(input: {
   const allergySet = new Set(allergies);
   const notices: DailyMealPlan["notices"] = [];
   const results = {} as Record<MealType, MealRecommendation>;
+  const candidatesByMealType = {} as Record<MealType, MealRecommendation[]>;
+  const menuCatalog = input.menuCatalog ?? MENU_CATALOG;
 
   if (ageMonths < 10 || ageMonths > 18) {
     notices.push({
@@ -255,9 +281,11 @@ export function buildDailyMealPlan(input: {
       safeIngredients,
       allergySet,
       excludedAllergyIngredients,
+      menuCatalog,
       seenStyles,
       seenProteins
     );
+    candidatesByMealType[mealType] = candidates;
 
     const selectedCandidate =
       candidates.find(
@@ -291,12 +319,23 @@ export function buildDailyMealPlan(input: {
   });
 
   return {
-    id: createId("meal_plan"),
-    childId: input.child.id,
-    childName: input.child.name,
-    createdAt: new Date().toISOString(),
-    mealInputs: input.mealInputs,
-    notices,
-    results
+    plan: {
+      id: createId("meal_plan"),
+      childId: input.child.id,
+      childName: input.child.name,
+      createdAt: new Date().toISOString(),
+      mealInputs: input.mealInputs,
+      notices,
+      results
+    },
+    candidates: candidatesByMealType
   };
+}
+
+export function buildDailyMealPlan(input: {
+  child: ChildProfile;
+  mealInputs: Record<MealType, string[]>;
+  menuCatalog?: MenuDefinition[];
+}): DailyMealPlan {
+  return buildDailyMealPlanWithCandidates(input).plan;
 }

@@ -8,6 +8,14 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icons/app-icon.svg"],
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
+        navigateFallback: "index.html",
+        cleanupOutdatedCaches: true
+      },
+      devOptions: {
+        enabled: true
+      },
       manifest: {
         name: "12개월 아이 하루 식단표",
         short_name: "아이 식단표",
