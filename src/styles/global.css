@@ -143,6 +143,11 @@ button {
   font-weight: 700;
 }
 
+.pill.warning {
+  background: var(--warning);
+  color: #7d6120;
+}
+
 .inline-chip {
   background: var(--surface-strong);
   border: 1px solid var(--line);
@@ -164,6 +169,7 @@ button {
 .meal-head,
 .history-head,
 .form-actions,
+.meal-badges,
 .chip-row,
 .meta-row,
 .card-actions,

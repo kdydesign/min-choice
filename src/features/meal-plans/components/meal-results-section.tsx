@@ -45,7 +45,10 @@ export function MealResultsSection({ plan }: MealResultsSectionProps) {
                       <p className="eyebrow">{MEAL_LABELS[mealType]}</p>
                       <h3>{result.name}</h3>
                     </div>
-                    <span className="pill">{result.cookingStyle}</span>
+                    <div className="meal-badges">
+                      <span className="pill">{result.cookingStyle}</span>
+                      {result.isFallback ? <span className="pill warning">기본 문구</span> : null}
+                    </div>
                   </div>
 
                   <div className="notice success">{result.recommendationText}</div>

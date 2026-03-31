@@ -35,6 +35,10 @@ import { normalizeIngredients } from "../features/ingredients/api/normalize-ingr
 import { PwaStatusBanner } from "../features/pwa/components/pwa-status-banner";
 import { useAuth } from "../features/auth/hooks/use-auth";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export function HomePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,8 +51,12 @@ export function HomePage() {
   const [editingProfile, setEditingProfile] = useState<ChildProfile | null>(null);
   const [mealDraft, setMealDraft] = useState<MealDraft>(emptyMealDraft());
   const [generatedPlan, setGeneratedPlan] = useState<DailyMealPlan | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data: profiles = [] } = useQuery({
+  const {
+    data: profiles = [],
+    error: profilesError
+  } = useQuery({
     queryKey: ["children"],
     queryFn: listChildProfiles
   });
@@ -58,7 +66,10 @@ export function HomePage() {
     [profiles, selectedChildId]
   );
 
-  const { data: history = [] } = useQuery({
+  const {
+    data: history = [],
+    error: historyError
+  } = useQuery({
     queryKey: ["meal-plans", selectedChild?.id],
     queryFn: () => (selectedChild ? listMealPlansByChild(selectedChild.id) : Promise.resolve([])),
     enabled: Boolean(selectedChild)
@@ -107,6 +118,7 @@ export function HomePage() {
       await queryClient.invalidateQueries({ queryKey: ["children"] });
       setSelectedChild(profile.id);
       setEditingProfile(null);
+      setActionError(null);
     }
   });
 
@@ -120,6 +132,7 @@ export function HomePage() {
     onSuccess: async (profileId) => {
       await queryClient.invalidateQueries({ queryKey: ["children"] });
       await queryClient.invalidateQueries({ queryKey: ["meal-plans"] });
+      setActionError(null);
 
       if (selectedChildId === profileId) {
         setSelectedChild("");
@@ -134,8 +147,14 @@ export function HomePage() {
       await queryClient.invalidateQueries({ queryKey: ["meal-plans", plan.childId] });
       setSelectedPlan(plan.id);
       setGeneratedPlan(plan);
+      setActionError(null);
     }
   });
+
+  const pageError =
+    actionError ??
+    (profilesError ? getErrorMessage(profilesError, "아이 프로필을 불러오지 못했어요.") : null) ??
+    (historyError ? getErrorMessage(historyError, "식단 이력을 불러오지 못했어요.") : null);
 
   const allergyWarnings = useMemo<Record<MealType, string[]>>(
     () => ({
@@ -162,7 +181,19 @@ export function HomePage() {
       updatedAt: now
     };
 
-    await profileMutation.mutateAsync(nextProfile);
+    try {
+      await profileMutation.mutateAsync(nextProfile);
+    } catch (error) {
+      setActionError(getErrorMessage(error, "아이 프로필을 저장하지 못했어요."));
+    }
+  }
+
+  async function handleDeleteProfile(childId: string) {
+    try {
+      await deleteProfileMutation.mutateAsync(childId);
+    } catch (error) {
+      setActionError(getErrorMessage(error, "아이 프로필을 삭제하지 못했어요."));
+    }
   }
 
   function handleChangeMealDraft(mealType: MealType, ingredients: string[]) {
@@ -194,34 +225,38 @@ export function HomePage() {
       return;
     }
 
-    const normalizedDraft = {
-      breakfast: (await normalizeIngredients(mealDraft.breakfast)).map((item) => item.standardKey),
-      lunch: (await normalizeIngredients(mealDraft.lunch)).map((item) => item.standardKey),
-      dinner: (await normalizeIngredients(mealDraft.dinner)).map((item) => item.standardKey),
-      updatedAt: new Date().toISOString()
-    } satisfies MealDraft;
+    try {
+      const normalizedDraft = {
+        breakfast: (await normalizeIngredients(mealDraft.breakfast)).map((item) => item.standardKey),
+        lunch: (await normalizeIngredients(mealDraft.lunch)).map((item) => item.standardKey),
+        dinner: (await normalizeIngredients(mealDraft.dinner)).map((item) => item.standardKey),
+        updatedAt: new Date().toISOString()
+      } satisfies MealDraft;
 
-    const plan = await generateMealPlan({
-      child: selectedChild,
-      mealInputs: {
-        breakfast: normalizedDraft.breakfast,
-        lunch: normalizedDraft.lunch,
-        dinner: normalizedDraft.dinner
-      }
-    });
+      const plan = await generateMealPlan({
+        child: selectedChild,
+        mealInputs: {
+          breakfast: normalizedDraft.breakfast,
+          lunch: normalizedDraft.lunch,
+          dinner: normalizedDraft.dinner
+        }
+      });
 
-    const nextPlanPayload: SaveMealPlanInput = {
-      plan,
-      sourceMealInputs: {
-        breakfast: mealDraft.breakfast,
-        lunch: mealDraft.lunch,
-        dinner: mealDraft.dinner
-      }
-    };
+      const nextPlanPayload: SaveMealPlanInput = {
+        plan,
+        sourceMealInputs: {
+          breakfast: mealDraft.breakfast,
+          lunch: mealDraft.lunch,
+          dinner: mealDraft.dinner
+        }
+      };
 
-    await savePlanMutation.mutateAsync(nextPlanPayload);
-    saveMealDraft(selectedChild.id, normalizedDraft);
-    setMealDraft(normalizedDraft);
+      await savePlanMutation.mutateAsync(nextPlanPayload);
+      saveMealDraft(selectedChild.id, normalizedDraft);
+      setMealDraft(normalizedDraft);
+    } catch (error) {
+      setActionError(getErrorMessage(error, "식단을 생성하지 못했어요."));
+    }
   }
 
   return (
@@ -259,6 +294,8 @@ export function HomePage() {
       </header>
 
       <main className="layout">
+        {pageError ? <div className="notice danger">{pageError}</div> : null}
+
         <ChildProfilesSection
           profiles={profiles}
           selectedChildId={selectedChildId}
@@ -269,7 +306,7 @@ export function HomePage() {
           }}
           onSave={handleSaveProfile}
           onEdit={setEditingProfile}
-          onDelete={(childId) => deleteProfileMutation.mutate(childId)}
+          onDelete={(childId) => void handleDeleteProfile(childId)}
           editingProfile={editingProfile}
           onCancelEdit={() => setEditingProfile(null)}
         />

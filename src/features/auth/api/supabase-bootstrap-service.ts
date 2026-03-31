@@ -2,12 +2,7 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { isUuid } from "../../../lib/is-uuid";
 import { getSupabaseClient } from "../../../lib/supabase";
 import { removeValue, readJson, writeJson } from "../../../services/storage/browser-storage";
-import {
-  getSelectedChildId,
-  getSelectedPlanId,
-  setSelectedChildId,
-  setSelectedPlanId
-} from "../../../services/storage/preferences-storage";
+import { getSelectedChildId, setSelectedChildId } from "../../../services/storage/preferences-storage";
 import { MEAL_TYPES, type ChildProfile, type DailyMealPlan, type MealDraft, type MealType } from "../../../types/domain";
 
 const LEGACY_CHILDREN_STORAGE_KEY = "min-baby-meals.profiles";
@@ -143,8 +138,6 @@ async function migrateLocalDataToSupabase(userId: string) {
     });
   }
 
-  const planIdMap = new Map<string, string>();
-
   for (const plan of [...localMealPlans].sort((left, right) =>
     new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
   )) {
@@ -157,7 +150,6 @@ async function migrateLocalDataToSupabase(userId: string) {
     const existingPlanId = existingPlansByKey.get(`${nextChildId}:${plan.createdAt}`);
 
     if (existingPlanId) {
-      planIdMap.set(plan.id, existingPlanId);
       continue;
     }
 
@@ -222,7 +214,6 @@ async function migrateLocalDataToSupabase(userId: string) {
       throw insertInputError;
     }
 
-    planIdMap.set(plan.id, insertedPlan.id);
     existingPlansByKey.set(`${nextChildId}:${plan.createdAt}`, insertedPlan.id);
   }
 
@@ -241,7 +232,6 @@ async function migrateLocalDataToSupabase(userId: string) {
   writeJson(DRAFT_STORAGE_KEY, remappedDrafts);
 
   setSelectedChildId(childIdMap.get(getSelectedChildId()) ?? "");
-  setSelectedPlanId(planIdMap.get(getSelectedPlanId()) ?? "");
 
   removeValue(LEGACY_CHILDREN_STORAGE_KEY);
   removeValue(LEGACY_MEAL_PLANS_STORAGE_KEY);

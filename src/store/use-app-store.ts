@@ -1,9 +1,8 @@
 import { create } from "zustand";
 import {
+  clearLegacySelectedPlanId,
   getSelectedChildId,
-  getSelectedPlanId,
-  setSelectedChildId,
-  setSelectedPlanId
+  setSelectedChildId
 } from "../services/storage/preferences-storage";
 
 interface AppStoreState {
@@ -13,15 +12,16 @@ interface AppStoreState {
   setSelectedPlan: (planId: string) => void;
 }
 
+clearLegacySelectedPlanId();
+
 export const useAppStore = create<AppStoreState>((set) => ({
   selectedChildId: getSelectedChildId(),
-  selectedPlanId: getSelectedPlanId(),
+  selectedPlanId: "",
   setSelectedChild: (childId) => {
     setSelectedChildId(childId);
     set({ selectedChildId: childId });
   },
   setSelectedPlan: (planId) => {
-    setSelectedPlanId(planId);
     set({ selectedPlanId: planId });
   }
 }));

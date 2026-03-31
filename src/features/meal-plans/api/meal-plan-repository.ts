@@ -1,6 +1,5 @@
 import { getSupabaseClient } from "../../../lib/supabase";
 import { isUuid } from "../../../lib/is-uuid";
-import { readJson, writeJson } from "../../../services/storage/browser-storage";
 import {
   MEAL_TYPES,
   type DailyMealPlan,
@@ -12,8 +11,6 @@ import {
   ensureSupabasePersistenceReady,
   getSupabaseCurrentUserId
 } from "../../auth/api/supabase-bootstrap-service";
-
-const STORAGE_KEY = "min-baby-meals.meal-plans";
 
 interface MealPlanRow {
   id: string;
@@ -180,185 +177,154 @@ function mapMealPlanRow(row: MealPlanRow, childName: string): DailyMealPlan {
   };
 }
 
-async function listMealPlansLocally(childId: string) {
-  return sortPlans(
-    readJson<DailyMealPlan[]>(STORAGE_KEY, []).filter((item) => item.childId === childId)
-  );
-}
+async function requireMealPlanContext() {
+  const supabase = getSupabaseClient();
 
-async function saveMealPlanLocally(input: SaveMealPlanInput) {
-  const plans = readJson<DailyMealPlan[]>(STORAGE_KEY, []);
-  writeJson(STORAGE_KEY, [input.plan, ...plans]);
-  return input.plan;
-}
+  if (!supabase) {
+    throw new Error("Supabase 연결이 없어 식단 이력을 불러올 수 없어요.");
+  }
 
-async function deleteMealPlansByChildLocally(childId: string) {
-  const plans = readJson<DailyMealPlan[]>(STORAGE_KEY, []).filter((item) => item.childId !== childId);
-  writeJson(STORAGE_KEY, plans);
+  await ensureSupabasePersistenceReady();
+
+  const userId = await getSupabaseCurrentUserId();
+
+  if (!userId) {
+    throw new Error("Supabase 세션을 준비하지 못해 식단 이력을 처리할 수 없어요.");
+  }
+
+  return { supabase, userId };
 }
 
 export async function listMealPlansByChild(childId: string) {
-  const supabase = getSupabaseClient();
-
-  if (!supabase || !isUuid(childId)) {
-    return listMealPlansLocally(childId);
+  if (!isUuid(childId)) {
+    return [];
   }
 
-  try {
-    await ensureSupabasePersistenceReady();
-    const userId = await getSupabaseCurrentUserId();
+  const { supabase, userId } = await requireMealPlanContext();
+  const { data: childRecord, error: childError } = await supabase
+    .from("children")
+    .select("name")
+    .eq("id", childId)
+    .eq("owner_user_id", userId)
+    .single<{ name: string }>();
 
-    if (!userId) {
-      return listMealPlansLocally(childId);
-    }
-
-    const { data: childRecord, error: childError } = await supabase
-      .from("children")
-      .select("name")
-      .eq("id", childId)
-      .eq("owner_user_id", userId)
-      .single<{ name: string }>();
-
-    if (childError) {
-      throw childError;
-    }
-
-    const { data, error } = await supabase
-      .from("meal_plans")
-      .select(
-        "id, child_id, created_at, notices_json, meal_plan_items(meal_type, result_payload_json), meal_inputs(meal_type, original_ingredients_json, normalized_ingredients_json)"
-      )
-      .eq("child_id", childId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
-    return (data ?? []).map((row) => mapMealPlanRow(row as MealPlanRow, childRecord.name));
-  } catch (error) {
-    console.warn("Falling back to local meal plan storage", error);
-    return listMealPlansLocally(childId);
+  if (childError) {
+    throw childError;
   }
+
+  const { data, error } = await supabase
+    .from("meal_plans")
+    .select(
+      "id, child_id, created_at, notices_json, meal_plan_items(meal_type, result_payload_json), meal_inputs(meal_type, original_ingredients_json, normalized_ingredients_json)"
+    )
+    .eq("child_id", childId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return sortPlans((data ?? []).map((row) => mapMealPlanRow(row as MealPlanRow, childRecord.name)));
 }
 
 export async function saveMealPlan(input: SaveMealPlanInput) {
-  const supabase = getSupabaseClient();
-
-  if (!supabase || !isUuid(input.plan.childId)) {
-    return saveMealPlanLocally(input);
+  if (!isUuid(input.plan.childId)) {
+    throw new Error("식단을 저장할 아이 프로필 ID가 올바르지 않아요.");
   }
 
-  try {
-    await ensureSupabasePersistenceReady();
-    const userId = await getSupabaseCurrentUserId();
-
-    if (!userId) {
-      return saveMealPlanLocally(input);
-    }
-
-    const { plan, sourceMealInputs = input.plan.mealInputs } = input;
-    const { data: insertedPlan, error: insertPlanError } = await supabase
-      .from("meal_plans")
-      .insert({
-        child_id: plan.childId,
-        plan_date: getDateOnly(plan.createdAt),
-        created_by_user_id: userId,
-        created_at: plan.createdAt,
-        updated_at: plan.createdAt,
-        notices_json: plan.notices
-      })
-      .select("id, child_id, created_at, notices_json")
-      .single<Pick<MealPlanRow, "id" | "child_id" | "created_at" | "notices_json">>();
-
-    if (insertPlanError) {
-      throw insertPlanError;
-    }
-
-    const itemRows = MEAL_TYPES.map((mealType) => ({
-      meal_plan_id: insertedPlan.id,
-      meal_type: mealType,
-      menu_id: null,
-      menu_name: plan.results[mealType].name,
-      used_ingredient_keys_json: plan.results[mealType].usedIngredients,
-      missing_ingredient_keys_json: plan.results[mealType].missingIngredients,
-      substitutes_json: plan.results[mealType].substitutes,
-      ai_recommendation: plan.results[mealType].recommendationText,
-      recipe_summary_json: plan.results[mealType].recipeSummary,
-      recipe_full_json: plan.results[mealType].recipeSummary,
-      caution: plan.results[mealType].caution,
-      excluded_allergy_ingredients_json: plan.results[mealType].excludedAllergyIngredients,
-      prompt_version: plan.results[mealType].promptVersion,
-      is_fallback: plan.results[mealType].isFallback,
-      result_payload_json: plan.results[mealType],
-      created_at: plan.createdAt
-    }));
-
-    const { error: insertItemsError } = await supabase.from("meal_plan_items").insert(itemRows);
-
-    if (insertItemsError) {
-      await supabase.from("meal_plans").delete().eq("id", insertedPlan.id);
-      throw insertItemsError;
-    }
-
-    const inputRows = MEAL_TYPES.map((mealType) => ({
-      meal_plan_id: insertedPlan.id,
+  const { supabase, userId } = await requireMealPlanContext();
+  const { plan, sourceMealInputs = input.plan.mealInputs } = input;
+  const { data: insertedPlan, error: insertPlanError } = await supabase
+    .from("meal_plans")
+    .insert({
       child_id: plan.childId,
-      input_date: getDateOnly(plan.createdAt),
-      meal_type: mealType,
-      original_ingredients_json: sourceMealInputs[mealType],
-      normalized_ingredients_json: plan.mealInputs[mealType],
-      excluded_allergy_ingredients_json: plan.results[mealType].excludedAllergyIngredients,
-      created_at: plan.createdAt
-    }));
+      plan_date: getDateOnly(plan.createdAt),
+      created_by_user_id: userId,
+      created_at: plan.createdAt,
+      updated_at: plan.createdAt,
+      notices_json: plan.notices
+    })
+    .select("id, child_id, created_at, notices_json")
+    .single<Pick<MealPlanRow, "id" | "child_id" | "created_at" | "notices_json">>();
 
-    const { error: insertInputsError } = await supabase.from("meal_inputs").insert(inputRows);
-
-    if (insertInputsError) {
-      await supabase.from("meal_plans").delete().eq("id", insertedPlan.id);
-      throw insertInputsError;
-    }
-
-    return {
-      ...plan,
-      id: insertedPlan.id,
-      createdAt: insertedPlan.created_at,
-      notices: parsePlanNotices(insertedPlan.notices_json)
-    };
-  } catch (error) {
-    console.warn("Falling back to local meal plan save", error);
-    return saveMealPlanLocally(input);
+  if (insertPlanError) {
+    throw insertPlanError;
   }
+
+  const itemRows = MEAL_TYPES.map((mealType) => ({
+    meal_plan_id: insertedPlan.id,
+    meal_type: mealType,
+    menu_id: null,
+    menu_name: plan.results[mealType].name,
+    used_ingredient_keys_json: plan.results[mealType].usedIngredients,
+    missing_ingredient_keys_json: plan.results[mealType].missingIngredients,
+    substitutes_json: plan.results[mealType].substitutes,
+    ai_recommendation: plan.results[mealType].recommendationText,
+    recipe_summary_json: plan.results[mealType].recipeSummary,
+    recipe_full_json: plan.results[mealType].recipeSummary,
+    caution: plan.results[mealType].caution,
+    excluded_allergy_ingredients_json: plan.results[mealType].excludedAllergyIngredients,
+    prompt_version: plan.results[mealType].promptVersion,
+    is_fallback: plan.results[mealType].isFallback,
+    result_payload_json: plan.results[mealType],
+    created_at: plan.createdAt
+  }));
+
+  const { error: insertItemsError } = await supabase.from("meal_plan_items").insert(itemRows);
+
+  if (insertItemsError) {
+    await supabase.from("meal_plans").delete().eq("id", insertedPlan.id);
+    throw insertItemsError;
+  }
+
+  const inputRows = MEAL_TYPES.map((mealType) => ({
+    meal_plan_id: insertedPlan.id,
+    child_id: plan.childId,
+    input_date: getDateOnly(plan.createdAt),
+    meal_type: mealType,
+    original_ingredients_json: sourceMealInputs[mealType],
+    normalized_ingredients_json: plan.mealInputs[mealType],
+    excluded_allergy_ingredients_json: plan.results[mealType].excludedAllergyIngredients,
+    created_at: plan.createdAt
+  }));
+
+  const { error: insertInputsError } = await supabase.from("meal_inputs").insert(inputRows);
+
+  if (insertInputsError) {
+    await supabase.from("meal_plans").delete().eq("id", insertedPlan.id);
+    throw insertInputsError;
+  }
+
+  return {
+    ...plan,
+    id: insertedPlan.id,
+    createdAt: insertedPlan.created_at,
+    notices: parsePlanNotices(insertedPlan.notices_json)
+  };
 }
 
 export async function deleteMealPlansByChild(childId: string) {
-  const supabase = getSupabaseClient();
-
-  if (!supabase || !isUuid(childId)) {
-    return deleteMealPlansByChildLocally(childId);
+  if (!isUuid(childId)) {
+    return;
   }
 
-  try {
-    await ensureSupabasePersistenceReady();
-    const userId = await getSupabaseCurrentUserId();
+  const { supabase, userId } = await requireMealPlanContext();
+  const { error: deleteInputsError } = await supabase
+    .from("meal_inputs")
+    .delete()
+    .eq("child_id", childId);
 
-    if (!userId) {
-      return deleteMealPlansByChildLocally(childId);
-    }
+  if (deleteInputsError) {
+    throw deleteInputsError;
+  }
 
-    const { error: deleteInputsError } = await supabase.from("meal_inputs").delete().eq("child_id", childId);
+  const { error: deletePlansError } = await supabase
+    .from("meal_plans")
+    .delete()
+    .eq("child_id", childId)
+    .eq("created_by_user_id", userId);
 
-    if (deleteInputsError) {
-      throw deleteInputsError;
-    }
-
-    const { error: deletePlansError } = await supabase.from("meal_plans").delete().eq("child_id", childId);
-
-    if (deletePlansError) {
-      throw deletePlansError;
-    }
-  } catch (error) {
-    console.warn("Falling back to local meal plan delete", error);
-    return deleteMealPlansByChildLocally(childId);
+  if (deletePlansError) {
+    throw deletePlansError;
   }
 }
