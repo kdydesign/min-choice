@@ -52,6 +52,8 @@ interface AiGenerationOutcome {
   responsePayload: unknown;
 }
 
+class RequestValidationError extends Error {}
+
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const AI_PROMPT_VERSION = "openai-meal-copy-v1";
 const MAX_CANDIDATES = 3;
@@ -108,6 +110,87 @@ function jsonResponse(body: unknown, status = 200) {
       "Content-Type": "application/json"
     }
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseRequiredString(value: unknown, fieldName: string) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new RequestValidationError(`${fieldName} must be a non-empty string`);
+  }
+
+  return value.trim();
+}
+
+function parseOptionalString(value: unknown, fallback = "") {
+  return typeof value === "string" ? value.trim() : fallback;
+}
+
+function parseStringArrayField(value: unknown, fieldName: string) {
+  if (!Array.isArray(value)) {
+    throw new RequestValidationError(`${fieldName} must be an array of strings`);
+  }
+
+  const nextValues = value.flatMap((item) => {
+    if (typeof item !== "string") {
+      throw new RequestValidationError(`${fieldName} must be an array of strings`);
+    }
+
+    const trimmed = item.trim();
+    return trimmed ? [trimmed] : [];
+  });
+
+  return nextValues;
+}
+
+function parseAgeMonths(value: unknown) {
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+    throw new RequestValidationError("child.ageMonths must be a non-negative number");
+  }
+
+  return parsedValue;
+}
+
+function parseGenerateMealPlanRequest(value: unknown): GenerateMealPlanRequest {
+  if (!isRecord(value)) {
+    throw new RequestValidationError("Request body must be an object");
+  }
+
+  if (!isRecord(value.child)) {
+    throw new RequestValidationError("child must be an object");
+  }
+
+  if (!isRecord(value.mealInputs)) {
+    throw new RequestValidationError("mealInputs must be an object");
+  }
+
+  const now = new Date().toISOString();
+
+  return {
+    child: {
+      id: parseRequiredString(value.child.id, "child.id"),
+      name: parseRequiredString(value.child.name, "child.name"),
+      ageMonths: parseAgeMonths(value.child.ageMonths),
+      birthDate: parseOptionalString(value.child.birthDate),
+      allergies: parseStringArrayField(value.child.allergies ?? [], "child.allergies"),
+      createdAt: parseOptionalString(value.child.createdAt, now),
+      updatedAt: parseOptionalString(value.child.updatedAt, now)
+    },
+    mealInputs: {
+      breakfast: parseStringArrayField(value.mealInputs.breakfast, "mealInputs.breakfast"),
+      lunch: parseStringArrayField(value.mealInputs.lunch, "mealInputs.lunch"),
+      dinner: parseStringArrayField(value.mealInputs.dinner, "mealInputs.dinner")
+    }
+  };
 }
 
 function getOpenAiConfig(): OpenAiConfig | null {
@@ -533,7 +616,15 @@ serve(async (request) => {
   }
 
   try {
-    const payload = (await request.json()) as GenerateMealPlanRequest;
+    let requestBody: unknown;
+
+    try {
+      requestBody = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    const payload = parseGenerateMealPlanRequest(requestBody);
     const normalizedMealInputs = {
       breakfast: uniqueIngredients((payload.mealInputs.breakfast ?? []).map(normalizeIngredient)),
       lunch: uniqueIngredients((payload.mealInputs.lunch ?? []).map(normalizeIngredient)),
@@ -576,6 +667,10 @@ serve(async (request) => {
       results
     });
   } catch (error) {
+    if (error instanceof RequestValidationError) {
+      return jsonResponse({ error: error.message }, 400);
+    }
+
     console.warn("generate-meal-plan failed", error);
     return jsonResponse(
       {
