@@ -1598,20 +1598,20 @@ npm run build
 
 현재 구현 기준 진행 현황:
 
-- 완료: 3 / 8
-- 부분 진행: 3 / 8
-- 미진행: 2 / 8
+- 완료: 8 / 8
+- 부분 진행: 0 / 8
+- 미진행: 0 / 8
 
 #### TODO 체크리스트
 
 - [x] 아이 프로필 CRUD 구현
 - [x] 알레르기 태그 입력 구현
-- [ ] 재료 정규화 API 구현 _(현재 클라이언트 정규화 유틸만 구현됨)_
-- [ ] 식단 생성 Edge Function 구현 _(현재 클라이언트 로컬 생성만 구현됨)_
-- [ ] AI 응답 검증 및 fallback 처리 _(fallback 템플릿은 있으나 실제 AI 연동/검증은 미구현)_
+- [x] 재료 정규화 API 구현 _(클라이언트 서비스 + Supabase Edge Function 구현 및 배포 완료)_
+- [x] 식단 생성 Edge Function 구현 _(Supabase Edge Function 구현 및 hosted 배포 완료)_
+- [x] AI 응답 검증 및 fallback 처리 _(가드 로직, fallback 처리, OpenAI 연동 검증 완료)_
 - [x] 히스토리 화면 구현
-- [ ] GitHub Actions CI 설정
-- [ ] PWA 설치/오프라인 최적화 _(vite-plugin-pwa 적용 완료, 설치 UX 및 오프라인 검증 보완 필요)_
+- [x] GitHub Actions CI 설정
+- [x] PWA 설치/오프라인 최적화 _(설치 배너, 오프라인 상태 안내, 캐시 설정 보강 완료)_
 
 ## 25. 한 줄 정의
 
