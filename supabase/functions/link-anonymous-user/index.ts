@@ -6,6 +6,16 @@ interface LinkAnonymousUserRequest {
   anonymousUserId?: string;
 }
 
+function getBearerToken(authorization: string) {
+  const [scheme, token] = authorization.trim().split(/\s+/, 2);
+
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return token;
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -34,13 +44,19 @@ serve(async (request) => {
     return jsonResponse({ error: "Missing Supabase env or auth context" }, 500);
   }
 
+  const accessToken = getBearerToken(authorization);
+
+  if (!accessToken) {
+    return jsonResponse({ error: "Invalid authorization header" }, 401);
+  }
+
   const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: authorization
-      }
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
     }
   });
+
   const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -48,7 +64,7 @@ serve(async (request) => {
     }
   });
 
-  const { data: userData, error: userError } = await userClient.auth.getUser();
+  const { data: userData, error: userError } = await userClient.auth.getUser(accessToken);
 
   if (userError || !userData.user) {
     return jsonResponse({ error: "Unauthorized" }, 401);
