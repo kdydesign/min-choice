@@ -4,6 +4,11 @@ import { readJson, writeJson } from "./browser-storage";
 
 const DRAFT_STORAGE_KEY = "min-baby-meals.drafts";
 
+export function hasMealDraft(childId: string) {
+  const drafts = readJson<Record<string, MealDraft>>(DRAFT_STORAGE_KEY, {});
+  return childId in drafts;
+}
+
 export function getMealDraft(childId: string) {
   const drafts = readJson<Record<string, MealDraft>>(DRAFT_STORAGE_KEY, {});
   return drafts[childId] ?? emptyMealDraft();

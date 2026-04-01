@@ -17,11 +17,11 @@ export default defineConfig({
         enabled: true
       },
       manifest: {
-        name: "12개월 아이 하루 식단표",
-        short_name: "아이 식단표",
-        description: "아이별 재료와 알레르기를 반영해 하루 세끼 식단을 추천하는 PWA",
-        theme_color: "#f08c78",
-        background_color: "#fff8f5",
+        name: "Bebe Choice",
+        short_name: "Bebe Choice",
+        description: "12개월 아이의 하루 세끼 식단을 부드럽게 추천하는 모바일 우선 PWA",
+        theme_color: "#ef8e78",
+        background_color: "#fff7f2",
         display: "standalone",
         start_url: "/",
         icons: [

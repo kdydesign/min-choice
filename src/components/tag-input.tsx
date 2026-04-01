@@ -8,6 +8,7 @@ interface TagInputProps {
   onChange: (nextValue: string[]) => void;
   helperText?: string;
   warningTags?: string[];
+  hideLabel?: boolean;
 }
 
 export function TagInput({
@@ -16,7 +17,8 @@ export function TagInput({
   placeholder,
   onChange,
   helperText,
-  warningTags = []
+  warningTags = [],
+  hideLabel = false
 }: TagInputProps) {
   const [draftValue, setDraftValue] = useState("");
   const warningSet = useMemo(() => new Set(warningTags), [warningTags]);
@@ -36,7 +38,7 @@ export function TagInput({
 
   return (
     <label className="field">
-      <span>{label}</span>
+      <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
       <div className="tag-input">
         <div className="tag-list">
           {value.map((tag) => (
