@@ -54,8 +54,8 @@ export function getAuthProviderLabel(session: Session | null) {
     return "Google";
   }
 
-  if (provider === "apple") {
-    return "Apple";
+  if (provider === "kakao") {
+    return "Kakao";
   }
 
   return "Supabase Auth";

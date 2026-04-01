@@ -5,6 +5,7 @@
 ## 현재 구현 범위
 
 - React + TypeScript + Vite 기반 PWA
+- Supabase Auth 기반 Google 로그인, 익명 체험
 - 아이 프로필 생성, 수정, 삭제, 선택
 - 아이별 알레르기 재료 관리
 - 아침 / 점심 / 저녁 재료 태그 입력
@@ -66,3 +67,6 @@ supabase secrets set OPENAI_MODEL=gpt-4o-mini
 ## 참고
 
 현재 버전은 MVP 범위에 맞춘 프론트엔드 중심 구현입니다. 이번 단계에서 Supabase 클라이언트와 Edge Functions 연결을 먼저 정리했고, 다음 단계에서 익명 사용자 세션 / RLS 기반 CRUD로 넘어가면 됩니다.
+
+후속 TODO:
+- Kakao 로그인은 provider 연동 코드와 문서 초안은 준비했지만, Kakao 동의 항목 정책 이슈로 인해 현재 운영 경로에서는 비활성화했습니다.

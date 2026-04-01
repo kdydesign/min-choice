@@ -6,7 +6,7 @@ This project is a **Vite + React + TypeScript PWA** for generating a **daily 3-m
 
 Users can:
 
-* Sign in with **Google** or **Apple**
+ * Sign in with **Google**
 * Create and manage **child profiles**
 * Register **allergy ingredients** per child
 * Input ingredients for **breakfast / lunch / dinner**
@@ -109,7 +109,6 @@ This app must be **mobile-first**, **safe**, and **structured for long-term main
 ### Auth
 
 * Google login
-* Apple login
 * Optional anonymous user flow for pre-login usage
 * Anonymous data should be linkable to authenticated user later
 

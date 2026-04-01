@@ -31,7 +31,6 @@ interface AuthContextValue {
   identityLabel: string;
   providerLabel: string;
   signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
   continueAnonymously: () => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
@@ -158,10 +157,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signInWithGoogle: () =>
         runAuthAction(async () => {
           await startOAuthSignIn("google", session);
-        }),
-      signInWithApple: () =>
-        runAuthAction(async () => {
-          await startOAuthSignIn("apple", session);
         }),
       continueAnonymously: () =>
         runAuthAction(async () => {
