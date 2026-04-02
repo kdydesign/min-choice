@@ -61,6 +61,11 @@ export function getAuthProviderLabel(session: Session | null) {
   return "Supabase Auth";
 }
 
+function getOAuthRedirectUrl() {
+  const origin = window.location.origin;
+  return origin.endsWith("/") ? origin : `${origin}/`;
+}
+
 export async function startOAuthSignIn(provider: Provider, currentSession: Session | null) {
   const supabase = getSupabaseClient();
 
@@ -75,7 +80,7 @@ export async function startOAuthSignIn(provider: Provider, currentSession: Sessi
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: window.location.origin
+      redirectTo: getOAuthRedirectUrl()
     }
   });
 
