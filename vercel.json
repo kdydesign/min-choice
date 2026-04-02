@@ -9,6 +9,10 @@
       "destination": "/icons/$1"
     },
     {
+      "source": "/og-image.png",
+      "destination": "/og-image.png"
+    },
+    {
       "source": "/manifest.webmanifest",
       "destination": "/manifest.webmanifest"
     },
