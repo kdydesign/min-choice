@@ -5,6 +5,21 @@ import type { DailyMealPlan, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
 import { MEAL_LABELS } from "../../menus/data/menu-catalog";
 
+const MEAL_VISUALS: Record<MealType, { icon: string; summary: string }> = {
+  breakfast: {
+    icon: "☀️",
+    summary: "부드럽고 가벼운 시작"
+  },
+  lunch: {
+    icon: "🌿",
+    summary: "영양 균형을 챙긴 한 끼"
+  },
+  dinner: {
+    icon: "🌙",
+    summary: "편안하게 마무리하는 저녁"
+  }
+};
+
 interface MealResultsSectionProps {
   panelId?: string;
   plan: DailyMealPlan | null;
@@ -12,6 +27,7 @@ interface MealResultsSectionProps {
   onEditInputs?: () => void;
   onRegenerate?: () => void;
   isGenerating?: boolean;
+  hidePanelHeader?: boolean;
 }
 
 function formatDateTime(value: string) {
@@ -27,7 +43,8 @@ export function MealResultsSection({
   emptyMessage = "아직 생성된 식단이 없어요.",
   onEditInputs,
   onRegenerate,
-  isGenerating = false
+  isGenerating = false,
+  hidePanelHeader = false
 }: MealResultsSectionProps) {
   const [expandedMealType, setExpandedMealType] = useState<MealType | null>("breakfast");
 
@@ -41,6 +58,8 @@ export function MealResultsSection({
       eyebrow="Today"
       title="오늘의 추천 식단"
       subtitle="하루 3끼 결과와 조리 팁"
+      className="planner-panel planner-results-panel"
+      hideHeader={hidePanelHeader}
     >
       {!plan ? (
         <EmptyState
@@ -115,11 +134,19 @@ export function MealResultsSection({
               const isExpanded = expandedMealType === mealType;
 
               return (
-                <article key={mealType} className={`meal-card ${isExpanded ? "expanded" : ""}`}>
+                <article
+                  key={mealType}
+                  className={`meal-card meal-card-${mealType} ${isExpanded ? "expanded" : ""}`}
+                >
                   <div className="meal-head">
-                    <div>
-                      <p className="eyebrow">{MEAL_LABELS[mealType]}</p>
-                      <h3>{result.name}</h3>
+                    <div className="meal-title-block">
+                      <span className="meal-icon" aria-hidden="true">
+                        {MEAL_VISUALS[mealType].icon}
+                      </span>
+                      <div>
+                        <p className="eyebrow">{MEAL_LABELS[mealType]}</p>
+                        <h3>{result.name}</h3>
+                      </div>
                     </div>
                     <div className="meal-badges">
                       <span className="pill">{result.cookingStyle}</span>
@@ -127,7 +154,10 @@ export function MealResultsSection({
                     </div>
                   </div>
 
-                  <div className="notice success">{result.recommendationText}</div>
+                  <div className="meal-card-lead">
+                    <span className="meal-summary-pill">{MEAL_VISUALS[mealType].summary}</span>
+                    <div className="notice success">{result.recommendationText}</div>
+                  </div>
 
                   {result.excludedAllergyIngredients.length > 0 ? (
                     <div className="notice danger">
@@ -155,11 +185,11 @@ export function MealResultsSection({
                   {isExpanded ? (
                     <div className="meal-card-details">
                       <div className="detail-list">
-                        <div className="detail-item">
+                        <div className="detail-item detail-surface">
                           <strong>추천 이유</strong>
                           <span>{result.description}</span>
                         </div>
-                        <div className="detail-item">
+                        <div className="detail-item detail-surface">
                           <strong>사용 가능한 재료</strong>
                           <div className="chip-row">
                             {result.usedIngredients.length > 0 ? (
@@ -173,7 +203,7 @@ export function MealResultsSection({
                             )}
                           </div>
                         </div>
-                        <div className="detail-item">
+                        <div className="detail-item detail-surface">
                           <strong>부족한 재료</strong>
                           <div className="chip-row">
                             {result.missingIngredients.length > 0 ? (
@@ -188,7 +218,7 @@ export function MealResultsSection({
                           </div>
                           <p className="subtle">{result.missingIngredientExplanation}</p>
                         </div>
-                        <div className="detail-item">
+                        <div className="detail-item detail-surface">
                           <strong>대체 가능한 재료</strong>
                           <div className="chip-row">
                             {Object.entries(result.substitutes).length > 0 ? (
@@ -202,15 +232,15 @@ export function MealResultsSection({
                             )}
                           </div>
                         </div>
-                        <div className="detail-item">
+                        <div className="detail-item detail-surface">
                           <strong>식감 안내</strong>
                           <span>{result.textureNote}</span>
                         </div>
-                        <div className="detail-item">
+                        <div className="detail-item detail-surface">
                           <strong>주의사항</strong>
                           <span>{result.caution}</span>
                         </div>
-                        <div className="detail-item detail-item-recipe">
+                        <div className="detail-item detail-item-recipe detail-surface">
                           <strong>조리법 3줄</strong>
                           <ol className="recipe-list">
                             {result.recipeSummary.map((step) => (

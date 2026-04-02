@@ -61,7 +61,13 @@ export function MealHistorySection({
   const groupedHistory = groupHistory(history);
 
   return (
-    <Panel eyebrow="History" title="최근 식단" subtitle="아이별 생성 기록을 다시 불러오기">
+    <Panel
+      eyebrow="History"
+      title="최근 식단"
+      subtitle="아이별 생성 기록을 다시 불러오고 상세 결과를 이어서 볼 수 있어요."
+      className="planner-panel planner-history-panel"
+      hideHeader
+    >
       {!selectedChild ? (
         <EmptyState
           title="아이를 먼저 선택해 주세요"
@@ -102,6 +108,9 @@ export function MealHistorySection({
                         <div>
                           <div className="history-card-meta">
                             <h3>{formatDateTime(plan.createdAt)}</h3>
+                            <span className="history-card-caption">
+                              저장된 하루 3끼 메뉴를 다시 불러올 수 있어요.
+                            </span>
                           </div>
                           <div className="history-chip-row">
                             {MEAL_TYPES.map((mealType) => (

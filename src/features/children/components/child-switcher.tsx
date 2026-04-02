@@ -1,4 +1,5 @@
 import type { ChildProfile } from "../../../types/domain";
+import { getProfileInitial, getProfileTone } from "../lib/profile-tone";
 
 interface ChildSwitcherProps {
   profiles: ChildProfile[];
@@ -21,11 +22,18 @@ export function ChildSwitcher({ profiles, selectedChildId, onSelect }: ChildSwit
         <button
           key={profile.id}
           type="button"
-          className={`child-chip ${profile.id === selectedChildId ? "active" : ""}`}
+          className={`child-chip profile-tone-${getProfileTone(profile.id || profile.name)} ${
+            profile.id === selectedChildId ? "active" : ""
+          }`}
           onClick={() => onSelect(profile.id)}
         >
-          <strong>{profile.name}</strong>
-          <span>{profile.ageMonths}개월</span>
+          <span className="child-chip-avatar" aria-hidden="true">
+            {getProfileInitial(profile.name)}
+          </span>
+          <span className="child-chip-copy">
+            <strong>{profile.name}</strong>
+            <span>{profile.ageMonths}개월</span>
+          </span>
         </button>
       ))}
     </div>

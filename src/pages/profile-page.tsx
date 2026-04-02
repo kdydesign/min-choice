@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { AppFrame } from "../components/app-frame";
-import { ChildProfileCard } from "../components/child-profile-card";
 import { ErrorState } from "../components/error-state";
 import { LoadingState } from "../components/loading-state";
 import { ChildProfilesSection } from "../features/children/components/child-profiles-section";
-import { ChildSwitcher } from "../features/children/components/child-switcher";
 import { useAuth } from "../features/auth/hooks/use-auth";
 import {
   deleteChildProfile,
@@ -43,11 +41,6 @@ export function ProfilePage() {
     queryKey: ["children"],
     queryFn: listChildProfiles
   });
-
-  const selectedChild = useMemo(
-    () => profiles.find((profile) => profile.id === selectedChildId) ?? null,
-    [profiles, selectedChildId]
-  );
 
   useEffect(() => {
     if (profiles.length === 0) {
@@ -136,75 +129,73 @@ export function ProfilePage() {
 
   return (
     <AppFrame
-      title={profiles.length === 0 ? "첫 아이 프로필을 등록해 주세요" : "아이 프로필 관리"}
-      subtitle="최초 진입에서는 프로필 등록이 먼저 열리고, 이후에는 수정과 전환이 가능합니다."
-      context={
-        selectedChild ? (
-          <ChildProfileCard
-            child={selectedChild}
-            label="Current Child"
-            tone="neutral"
-            helperText="아이 정보는 언제든 수정할 수 있고, 마지막 선택 아이는 계속 기억돼요."
-          />
-        ) : null
-      }
+      title={profiles.length === 0 ? "첫 아이 프로필" : "아이 프로필"}
+      subtitle="아이 정보를 저장해 두면 오늘 식단과 최근 기록을 더 빠르게 이어서 볼 수 있어요."
+      showIntro={false}
+      showTopbar={false}
     >
-      {pageError ? (
-        <ErrorState
-          title="아이 프로필 화면을 준비하지 못했어요"
-          description={pageError}
-          action={
+      <div className="profile-selection-layout">
+        <section className="profile-selection-header">
+          <div className="profile-selection-header-bar">
             <button
               type="button"
-              className="secondary small"
-              onClick={() => void refetchProfiles()}
+              className="profile-selection-header-side"
+              onClick={() => navigate("/")}
+              aria-label="오늘 식단으로 이동"
             >
-              다시 시도
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+              </svg>
             </button>
-          }
-        />
-      ) : null}
-      {actionSuccess ? <div className="notice success">{actionSuccess}</div> : null}
+            <h1>우리 아이 선택</h1>
+            <div className="profile-selection-header-placeholder" aria-hidden="true" />
+          </div>
+        </section>
 
-      {isProfilesLoading && !pageError ? (
-        <LoadingState
-          title="아이 프로필을 불러오는 중이에요"
-          description="등록된 아이 정보와 마지막 선택 상태를 정리하고 있어요."
-        />
-      ) : null}
+        {pageError ? (
+          <ErrorState
+            title="아이 프로필 화면을 준비하지 못했어요"
+            description={pageError}
+            action={
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => void refetchProfiles()}
+              >
+                다시 시도
+              </button>
+            }
+          />
+        ) : null}
+        {actionSuccess ? <div className="notice success">{actionSuccess}</div> : null}
 
-      {profiles.length > 0 ? (
-        <ChildSwitcher
+        {isProfilesLoading && !pageError ? (
+          <LoadingState
+            title="아이 프로필을 불러오는 중이에요"
+            description="등록된 아이 정보와 마지막 선택 상태를 정리하고 있어요."
+          />
+        ) : null}
+
+        <ChildProfilesSection
           profiles={profiles}
           selectedChildId={selectedChildId}
           onSelect={(childId) => {
             setSelectedChild(childId);
             setSelectedPlan("");
             setEditingProfile(null);
-            setActionSuccess(null);
           }}
+          onSave={handleSaveProfile}
+          onEdit={setEditingProfile}
+          onDelete={(childId) => void handleDeleteProfile(childId)}
+          editingProfile={editingProfile}
+          onCancelEdit={() => setEditingProfile(null)}
         />
-      ) : null}
 
-      <ChildProfilesSection
-        profiles={profiles}
-        selectedChildId={selectedChildId}
-        onSelect={(childId) => {
-          setSelectedChild(childId);
-          setSelectedPlan("");
-          setEditingProfile(null);
-        }}
-        onSave={handleSaveProfile}
-        onEdit={setEditingProfile}
-        onDelete={(childId) => void handleDeleteProfile(childId)}
-        editingProfile={editingProfile}
-        onCancelEdit={() => setEditingProfile(null)}
-      />
-
-      <div className="profile-page-actions">
-        <button type="button" className="ghost" onClick={() => void signOut()}>
-          {isAnonymous ? "익명 종료" : "로그아웃"}
-        </button>
+        <div className="profile-page-actions">
+          <button type="button" className="ghost" onClick={() => void signOut()}>
+            {isAnonymous ? "익명 종료" : "로그아웃"}
+          </button>
+        </div>
       </div>
     </AppFrame>
   );

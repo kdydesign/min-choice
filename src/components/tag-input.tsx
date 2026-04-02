@@ -9,6 +9,7 @@ interface TagInputProps {
   helperText?: string;
   warningTags?: string[];
   hideLabel?: boolean;
+  tone?: "neutral" | "breakfast" | "lunch" | "dinner" | "profile";
 }
 
 export function TagInput({
@@ -18,7 +19,8 @@ export function TagInput({
   onChange,
   helperText,
   warningTags = [],
-  hideLabel = false
+  hideLabel = false,
+  tone = "neutral"
 }: TagInputProps) {
   const [draftValue, setDraftValue] = useState("");
   const warningSet = useMemo(() => new Set(warningTags), [warningTags]);
@@ -39,7 +41,7 @@ export function TagInput({
   return (
     <label className="field">
       <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
-      <div className="tag-input">
+      <div className={`tag-input tag-input-${tone}`}>
         <div className="tag-list">
           {value.map((tag) => (
             <button

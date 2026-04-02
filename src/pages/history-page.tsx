@@ -86,19 +86,24 @@ export function HistoryPage() {
 
   return (
     <AppFrame
-      title="최근 식단"
-      subtitle="저장된 하루 식단을 다시 열어 보고, 끼니별 결과를 빠르게 비교할 수 있어요."
-      context={
-        selectedChild ? (
-          <ChildProfileCard
-            child={selectedChild}
-            label="History"
-            tone="neutral"
-            helperText={`저장된 식단 이력 ${history.length}건을 최신순으로 보여주고 있어요.`}
-          />
-        ) : null
-      }
+      title="저장한 식단"
+      subtitle="최근에 만든 하루 식단을 다시 열어 보고, 결과를 빠르게 비교할 수 있어요."
+      showIntro={false}
     >
+      <section className="figma-screen-head">
+        <h1>저장한 식단</h1>
+        <p>{selectedChild ? `${selectedChild.name}의 최근 식단 ${history.length}건` : "아이를 먼저 선택해 주세요"}</p>
+      </section>
+
+      {selectedChild ? (
+        <ChildProfileCard
+          child={selectedChild}
+          label="최근 식단 기준 아이"
+          tone="neutral"
+          helperText={`저장된 식단 ${history.length}건을 최신순으로 보여주고 있어요.`}
+        />
+      ) : null}
+
       {pageError ? (
         <ErrorState
           title="최근 식단을 불러오지 못했어요"

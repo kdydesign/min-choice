@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { AppFrame } from "../components/app-frame";
-import { ChildProfileCard } from "../components/child-profile-card";
 import { ErrorState } from "../components/error-state";
 import { LoadingState } from "../components/loading-state";
-import { ChildSwitcher } from "../features/children/components/child-switcher";
 import { listChildProfiles } from "../features/children/api/child-profile-repository";
 import {
   clearMealDraft,
@@ -22,9 +21,9 @@ import {
   type SaveMealPlanInput
 } from "../features/meal-plans/api/meal-plan-repository";
 import { generateMealPlan } from "../features/meal-plans/api/generate-meal-plan-service";
-import { MealResultsSection } from "../features/meal-plans/components/meal-results-section";
 import { MEAL_TYPES } from "../types/domain";
 import { normalizeIngredients } from "../features/ingredients/api/normalize-ingredients-service";
+import { TodayMealResultScreen } from "../features/meal-plans/components/today-meal-result-screen";
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -52,6 +51,7 @@ function areMealInputsEqual(draft: MealDraft, plan: DailyMealPlan | null) {
 }
 
 export function HomePage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const selectedChildId = useAppStore((state) => state.selectedChildId);
   const setSelectedChild = useAppStore((state) => state.setSelectedChild);
@@ -60,6 +60,7 @@ export function HomePage() {
   const [mealDraft, setMealDraft] = useState<MealDraft>(emptyMealDraft());
   const [actionError, setActionError] = useState<string | null>(null);
   const [hasSeededInitialDraft, setHasSeededInitialDraft] = useState(false);
+  const [todayView, setTodayView] = useState<"input" | "result">("input");
   const [generationProgress, setGenerationProgress] = useState<{
     label: string;
     value: number;
@@ -146,13 +147,6 @@ export function HomePage() {
   const hasPendingChanges = useMemo(() => !areMealInputsEqual(mealDraft, latestPlan), [latestPlan, mealDraft]);
   const visiblePlan = hasPendingChanges ? null : latestPlan;
 
-  function handleScrollToInputs() {
-    document.getElementById("meal-input-panel")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
-  }
-
   const allergyWarnings = useMemo<Record<MealType, string[]>>(
     () => ({
       breakfast: selectedChild ? getIngredientConflicts(mealDraft.breakfast, selectedChild.allergies) : [],
@@ -214,6 +208,7 @@ export function HomePage() {
       setMealDraft(normalizedDraft);
       setHasSeededInitialDraft(true);
       setSelectedPlan(savedPlan.id);
+      setTodayView("result");
       setGenerationProgress({
         label: "오늘 식단 준비가 끝났어요.",
         value: 100
@@ -260,20 +255,121 @@ export function HomePage() {
     (historyError ? getErrorMessage(historyError, "식단 이력을 불러오지 못했어요.") : null);
   const isPageLoading = isProfilesLoading || (Boolean(selectedChild) && isHistoryLoading);
 
+  useEffect(() => {
+    if (!selectedChild) {
+      setTodayView("input");
+    }
+  }, [selectedChild]);
+
+  useEffect(() => {
+    if (hasPendingChanges) {
+      setTodayView("input");
+    }
+  }, [hasPendingChanges]);
+
+  if (todayView === "result") {
+    return (
+      <AppFrame
+        title="오늘의 식단"
+        subtitle="집에 있는 재료를 끼니별로 적으면, 하루 3끼를 바로 추천해요."
+        showIntro={false}
+        showTopbar={false}
+      >
+        {pageError ? (
+          <ErrorState
+            title="오늘 식단 화면을 준비하지 못했어요"
+            description={pageError}
+            action={
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => {
+                  void refetchProfiles();
+                  void refetchHistory();
+                }}
+              >
+                다시 시도
+              </button>
+            }
+          />
+        ) : null}
+
+        {isPageLoading && !pageError ? (
+          <LoadingState
+            title="오늘 식단 화면을 준비하고 있어요"
+            description="선택한 아이 정보와 최근 식단을 불러오는 중이에요."
+          />
+        ) : null}
+
+        {!pageError && !isPageLoading ? (
+          <TodayMealResultScreen
+            childName={selectedChild?.name ?? ""}
+            plan={visiblePlan}
+            isGenerating={savePlanMutation.isPending || Boolean(generationProgress)}
+            onBack={() => setTodayView("input")}
+            onRegenerate={selectedChild ? handleGeneratePlan : undefined}
+          />
+        ) : null}
+      </AppFrame>
+    );
+  }
+
   return (
     <AppFrame
-      title="오늘 식단 입력"
-      subtitle="아침, 점심, 저녁에 쓸 재료를 차례대로 적어 주세요."
-      context={
-        selectedChild ? (
-          <ChildProfileCard
-            child={selectedChild}
-            label="Selected Child"
-            helperText="이 아이 기준으로 오늘 아침, 점심, 저녁 식단을 맞춰드려요."
-          />
-        ) : null
-      }
+      title="오늘의 식단"
+      subtitle="집에 있는 재료를 끼니별로 적으면, 하루 3끼를 바로 추천해요."
+      showIntro={false}
+      showTopbar={false}
     >
+      <section className="meal-plan-page-header">
+        <div className="meal-plan-page-header-bar">
+          <button
+            type="button"
+            className="meal-plan-page-header-side"
+            onClick={() => navigate("/profile")}
+            aria-label="아이 프로필로 이동"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="meal-plan-page-brand">
+            <div className="meal-plan-page-brand-mark" aria-hidden="true">
+              👶
+            </div>
+            <h1>베베 초이스</h1>
+          </div>
+          <div className="meal-plan-page-header-placeholder" aria-hidden="true" />
+        </div>
+      </section>
+
+      {selectedChild ? (
+        <section className="meal-plan-selected-child-card">
+          <div className="meal-plan-selected-child-avatar" aria-hidden="true">
+            👶
+          </div>
+          <div className="meal-plan-selected-child-copy">
+            <strong>{selectedChild.name}</strong>
+            <span>{selectedChild.ageMonths}개월</span>
+          </div>
+          <button
+            type="button"
+            className="meal-plan-selected-child-action"
+            onClick={() => navigate("/profile")}
+            aria-label="아이 프로필 수정"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+            </svg>
+          </button>
+        </section>
+      ) : (
+        <section className="figma-screen-head">
+          <h1>오늘의 식단</h1>
+          <p>아이를 먼저 선택해 주세요</p>
+        </section>
+      )}
+
       {pageError ? (
         <ErrorState
           title="오늘 식단 화면을 준비하지 못했어요"
@@ -300,14 +396,12 @@ export function HomePage() {
         />
       ) : null}
 
-      <ChildSwitcher
-        profiles={profiles}
-        selectedChildId={selectedChildId}
-        onSelect={(childId) => {
-          setSelectedChild(childId);
-          setSelectedPlan("");
-        }}
-      />
+      {selectedChild ? (
+        <section className="figma-screen-head meal-plan-title-copy">
+          <h2>오늘의 식단</h2>
+          <p>{selectedChild.name}를 위한 맞춤 식단입니다</p>
+        </section>
+      ) : null}
 
       {hasPendingChanges ? (
         <div className="notice warning">
@@ -326,18 +420,6 @@ export function HomePage() {
         isGenerating={savePlanMutation.isPending || Boolean(generationProgress)}
         progressLabel={generationProgress?.label}
         progressValue={generationProgress?.value}
-      />
-
-      <MealResultsSection
-        plan={visiblePlan}
-        onEditInputs={selectedChild ? handleScrollToInputs : undefined}
-        onRegenerate={selectedChild ? handleGeneratePlan : undefined}
-        isGenerating={savePlanMutation.isPending || Boolean(generationProgress)}
-        emptyMessage={
-          selectedChild
-            ? "오늘 식단이 아직 없어요. 위에서 재료를 입력하고 새로 생성해 주세요."
-            : "아이를 먼저 선택하면 오늘 식단이 여기에 표시돼요."
-        }
       />
     </AppFrame>
   );

@@ -8,37 +8,50 @@ interface AppFrameProps extends PropsWithChildren {
   title: string;
   subtitle?: string;
   context?: ReactNode;
+  showIntro?: boolean;
+  showTopbar?: boolean;
 }
 
-export function AppFrame({ title, subtitle, context, children }: AppFrameProps) {
+export function AppFrame({
+  title,
+  subtitle,
+  context,
+  showIntro = true,
+  showTopbar = true,
+  children
+}: AppFrameProps) {
   const { identityLabel, providerLabel } = useAuth();
 
   return (
     <div className="app-shell">
       <PwaStatusBanner />
 
-      <header className="app-topbar">
-        <div className="brand-lockup">
-          <BrandLogo compact />
-        </div>
+      {showTopbar ? (
+        <header className="app-topbar">
+          <div className="app-topbar-row">
+            <div className="brand-lockup">
+              <BrandLogo compact />
+            </div>
 
-        <div className="topbar-actions">
-          <div className="auth-summary">
-            <span className="inline-chip">{providerLabel}</span>
-            <span className="subtle">{identityLabel}</span>
+            <div className="auth-summary">
+              <span className="inline-chip">{providerLabel}</span>
+              <span className="subtle">{identityLabel}</span>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      ) : null}
 
       <main className="screen-stack">
-        <section className="screen-intro">
-          <div>
-            <p className="eyebrow">Bebe Choice</p>
-            <h1>{title}</h1>
-            {subtitle ? <p className="subtle">{subtitle}</p> : null}
-          </div>
-          {context ? <div className="screen-context">{context}</div> : null}
-        </section>
+        {showIntro ? (
+          <section className="screen-intro">
+            <div>
+              <p className="eyebrow">Bebe Choice</p>
+              <h1>{title}</h1>
+              {subtitle ? <p className="subtle">{subtitle}</p> : null}
+            </div>
+            {context ? <div className="screen-context">{context}</div> : null}
+          </section>
+        ) : null}
 
         {children}
       </main>
