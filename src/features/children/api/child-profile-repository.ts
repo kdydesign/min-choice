@@ -6,6 +6,11 @@ import {
   ensureSupabasePersistenceReady,
   getSupabaseCurrentUserId
 } from "../../auth/api/supabase-bootstrap-service";
+import {
+  deriveAgeMonthsFromBirthDate,
+  deriveBirthDateFromAgeMonths,
+  getDefaultBirthDate
+} from "../lib/profile-date-utils";
 
 interface ChildProfileRow {
   id: string;
@@ -43,12 +48,17 @@ function parseStringArray(value: unknown) {
 
 function normalizeProfileInput(profile: SaveChildProfileInput): ChildProfile {
   const now = new Date().toISOString();
+  const normalizedBirthDate = profile.birthDate.trim();
+  const normalizedAgeMonths =
+    typeof profile.ageMonths === "number"
+      ? profile.ageMonths
+      : deriveAgeMonthsFromBirthDate(normalizedBirthDate) ?? 0;
 
   return {
     id: profile.id && profile.id.trim() ? profile.id : createId("child"),
     name: profile.name.trim(),
-    ageMonths: profile.ageMonths,
-    birthDate: profile.birthDate,
+    ageMonths: normalizedAgeMonths,
+    birthDate: normalizedBirthDate || deriveBirthDateFromAgeMonths(normalizedAgeMonths) || getDefaultBirthDate(),
     allergies: [...new Set(profile.allergies.map((item) => item.trim()).filter(Boolean))],
     createdAt: profile.createdAt ?? now,
     updatedAt: profile.updatedAt ?? now
@@ -56,11 +66,16 @@ function normalizeProfileInput(profile: SaveChildProfileInput): ChildProfile {
 }
 
 function mapChildProfileRow(row: ChildProfileRow): ChildProfile {
+  const derivedAgeMonths = row.birth_date ? deriveAgeMonthsFromBirthDate(row.birth_date) : null;
+  const ageMonths = row.age_months ?? derivedAgeMonths ?? 0;
+  const birthDate =
+    row.birth_date ?? deriveBirthDateFromAgeMonths(ageMonths) ?? getDefaultBirthDate();
+
   return {
     id: row.id,
     name: row.name,
-    ageMonths: row.age_months ?? 12,
-    birthDate: row.birth_date ?? "",
+    ageMonths,
+    birthDate,
     allergies: parseStringArray(row.allergies_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at

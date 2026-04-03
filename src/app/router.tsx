@@ -47,10 +47,14 @@ function ProtectedHomeRoute() {
 }
 
 function PublicLoginRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { canAccessApp, isAuthenticated, isLoading, isAnonymousPaused } = useAuth();
 
   if (isLoading) {
     return <RoutePendingScreen />;
+  }
+
+  if (canAccessApp && !isAnonymousPaused) {
+    return <Navigate to="/" replace />;
   }
 
   return isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />;

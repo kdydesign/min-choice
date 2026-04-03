@@ -6,6 +6,7 @@ import {
 } from "./supabase-bootstrap-service";
 
 const PENDING_ANONYMOUS_LINK_KEY = "min-baby-meals.pending-anonymous-link-user-id";
+const ANONYMOUS_SESSION_PAUSED_KEY = "min-baby-meals.anonymous-session-paused";
 
 export function isAnonymousSession(session: Session | null) {
   if (!session?.user) {
@@ -25,6 +26,19 @@ function setPendingAnonymousLinkUserId(userId: string) {
 
 export function clearPendingAnonymousLinkUserId() {
   localStorage.removeItem(PENDING_ANONYMOUS_LINK_KEY);
+}
+
+export function isAnonymousSessionPaused() {
+  return localStorage.getItem(ANONYMOUS_SESSION_PAUSED_KEY) === "true";
+}
+
+function setAnonymousSessionPaused(nextValue: boolean) {
+  if (!nextValue) {
+    localStorage.removeItem(ANONYMOUS_SESSION_PAUSED_KEY);
+    return;
+  }
+
+  localStorage.setItem(ANONYMOUS_SESSION_PAUSED_KEY, "true");
 }
 
 export function getAuthIdentityLabel(session: Session | null) {
@@ -77,6 +91,8 @@ export async function startOAuthSignIn(provider: Provider, currentSession: Sessi
     setPendingAnonymousLinkUserId(currentSession!.user.id);
   }
 
+  setAnonymousSessionPaused(false);
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
@@ -94,23 +110,32 @@ export async function startOAuthSignIn(provider: Provider, currentSession: Sessi
 export async function continueWithAnonymousSession() {
   const session = await ensureSupabaseSession();
   await ensureSupabasePersistenceReady();
+  setAnonymousSessionPaused(false);
   return session;
 }
 
-export async function signOutSupabase() {
+export async function signOutSupabase(currentSession: Session | null) {
   const supabase = getSupabaseClient();
 
+  if (isAnonymousSession(currentSession)) {
+    setAnonymousSessionPaused(true);
+    return currentSession ? ({ ...currentSession } as Session) : null;
+  }
+
   if (!supabase) {
-    return;
+    return null;
   }
 
   clearPendingAnonymousLinkUserId();
+  setAnonymousSessionPaused(false);
 
   const { error } = await supabase.auth.signOut();
 
   if (error) {
     throw error;
   }
+
+  return null;
 }
 
 export async function linkPendingAnonymousUserToCurrentSession(session: Session | null) {
@@ -142,4 +167,5 @@ export async function linkPendingAnonymousUserToCurrentSession(session: Session 
   }
 
   clearPendingAnonymousLinkUserId();
+  setAnonymousSessionPaused(false);
 }

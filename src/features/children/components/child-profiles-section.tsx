@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { TagInput } from "../../../components/tag-input";
 import type { ChildProfile } from "../../../types/domain";
+import {
+  deriveAgeMonthsFromBirthDate,
+  deriveBirthDateFromAgeMonths,
+  getDefaultBirthDate,
+  isFutureBirthDate,
+  isValidAgeMonthsInput,
+  isValidChildName
+} from "../lib/profile-date-utils";
 import { getProfileBackgroundColor } from "../lib/profile-tone";
 
 interface ChildProfilesSectionProps {
@@ -24,28 +32,54 @@ interface ProfileFormState {
 interface ProfileFormErrors {
   name?: string;
   ageMonths?: string;
+  birthDate?: string;
 }
 
-const EMPTY_FORM: ProfileFormState = {
-  name: "",
-  ageMonths: "12",
-  birthDate: "",
-  allergies: []
-};
+function createEmptyFormState(): ProfileFormState {
+  return {
+    name: "",
+    ageMonths: "0",
+    birthDate: getDefaultBirthDate(),
+    allergies: []
+  };
+}
+
+function createFormStateFromProfile(profile: ChildProfile): ProfileFormState {
+  const fallbackAgeMonths =
+    typeof profile.ageMonths === "number"
+      ? profile.ageMonths
+      : deriveAgeMonthsFromBirthDate(profile.birthDate) ?? 0;
+  const fallbackBirthDate =
+    profile.birthDate || deriveBirthDateFromAgeMonths(fallbackAgeMonths) || getDefaultBirthDate();
+
+  return {
+    name: profile.name,
+    ageMonths: String(fallbackAgeMonths),
+    birthDate: fallbackBirthDate,
+    allergies: profile.allergies
+  };
+}
 
 function validateProfileForm(state: ProfileFormState): ProfileFormErrors {
   const errors: ProfileFormErrors = {};
   const trimmedName = state.name.trim();
-  const ageMonths = Number(state.ageMonths);
 
   if (!trimmedName) {
     errors.name = "아이 이름을 입력해 주세요.";
+  } else if (!isValidChildName(trimmedName)) {
+    errors.name = "아이 이름 형식을 다시 확인해 주세요.";
   }
 
   if (!state.ageMonths.trim()) {
     errors.ageMonths = "개월 수를 입력해 주세요.";
-  } else if (!Number.isFinite(ageMonths) || ageMonths < 6 || ageMonths > 36) {
-    errors.ageMonths = "개월 수는 6개월부터 36개월 사이로 입력해 주세요.";
+  } else if (!isValidAgeMonthsInput(state.ageMonths)) {
+    errors.ageMonths = "개월 수는 0 이상의 숫자로 입력해 주세요.";
+  }
+
+  if (!state.birthDate.trim()) {
+    errors.birthDate = "생년월일을 입력해 주세요.";
+  } else if (isFutureBirthDate(state.birthDate)) {
+    errors.birthDate = "생년월일은 오늘 이후 날짜로 입력할 수 없어요.";
   }
 
   return errors;
@@ -61,26 +95,26 @@ export function ChildProfilesSection({
   editingProfile,
   onCancelEdit
 }: ChildProfilesSectionProps) {
-  const [formState, setFormState] = useState<ProfileFormState>(EMPTY_FORM);
+  const [formState, setFormState] = useState<ProfileFormState>(() => createEmptyFormState());
   const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [touchedFields, setTouchedFields] = useState<{ name: boolean; ageMonths: boolean }>({
+  const [touchedFields, setTouchedFields] = useState<{
+    name: boolean;
+    ageMonths: boolean;
+    birthDate: boolean;
+  }>({
     name: false,
-    ageMonths: false
+    ageMonths: false,
+    birthDate: false
   });
 
   useEffect(() => {
     if (!editingProfile) {
-      setFormState(EMPTY_FORM);
-      setTouchedFields({ name: false, ageMonths: false });
+      setFormState(createEmptyFormState());
+      setTouchedFields({ name: false, ageMonths: false, birthDate: false });
       setIsComposerOpen(profiles.length === 0);
     } else {
-      setFormState({
-        name: editingProfile.name,
-        ageMonths: String(editingProfile.ageMonths),
-        birthDate: editingProfile.birthDate,
-        allergies: editingProfile.allergies
-      });
-      setTouchedFields({ name: false, ageMonths: false });
+      setFormState(createFormStateFromProfile(editingProfile));
+      setTouchedFields({ name: false, ageMonths: false, birthDate: false });
       setIsComposerOpen(true);
     }
   }, [editingProfile, profiles.length]);
@@ -157,8 +191,8 @@ export function ChildProfilesSection({
         type="button"
         className="profile-selection-add-button"
         onClick={() => {
-          setFormState(EMPTY_FORM);
-          setTouchedFields({ name: false, ageMonths: false });
+          setFormState(createEmptyFormState());
+          setTouchedFields({ name: false, ageMonths: false, birthDate: false });
           onCancelEdit();
           setIsComposerOpen(true);
         }}
@@ -186,22 +220,22 @@ export function ChildProfilesSection({
 
               const nextErrors = validateProfileForm(formState);
 
-              if (nextErrors.name || nextErrors.ageMonths) {
-                setTouchedFields({ name: true, ageMonths: true });
+              if (nextErrors.name || nextErrors.ageMonths || nextErrors.birthDate) {
+                setTouchedFields({ name: true, ageMonths: true, birthDate: true });
                 return;
               }
 
               onSave(
                 {
                   name: formState.name.trim(),
-                  ageMonths: Number(formState.ageMonths || "12"),
-                  birthDate: formState.birthDate,
+                  ageMonths: Number(formState.ageMonths || "0"),
+                  birthDate: formState.birthDate.trim(),
                   allergies: formState.allergies
                 },
                 editingProfile?.id
               );
-              setFormState(EMPTY_FORM);
-              setTouchedFields({ name: false, ageMonths: false });
+              setFormState(createEmptyFormState());
+              setTouchedFields({ name: false, ageMonths: false, birthDate: false });
               setIsComposerOpen(profiles.length === 0);
               onCancelEdit();
             }}
@@ -228,14 +262,26 @@ export function ChildProfilesSection({
               <label className="field">
                 <span>개월 수</span>
                 <input
-                  type="number"
+                  type="text"
                   value={formState.ageMonths}
-                  onChange={(event) =>
-                    setFormState((current) => ({ ...current, ageMonths: event.target.value }))
-                  }
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+
+                    if (nextValue && !/^\d+$/.test(nextValue)) {
+                      return;
+                    }
+
+                    setFormState((current) => ({
+                      ...current,
+                      ageMonths: nextValue,
+                      birthDate: nextValue
+                        ? deriveBirthDateFromAgeMonths(Number(nextValue)) || current.birthDate
+                        : current.birthDate
+                    }));
+                  }}
                   onBlur={() => setTouchedFields((current) => ({ ...current, ageMonths: true }))}
-                  min={6}
-                  max={36}
                   aria-invalid={touchedFields.ageMonths && Boolean(fieldErrors.ageMonths)}
                   required
                 />
@@ -243,7 +289,7 @@ export function ChildProfilesSection({
                   <small className="field-helper error">{fieldErrors.ageMonths}</small>
                 ) : (
                   <small className="field-helper">
-                    개월 수는 6개월부터 36개월 사이로 입력해 주세요.
+                    개월 수를 입력하면 오늘 날짜 기준으로 생년월일이 자동 계산돼요.
                   </small>
                 )}
               </label>
@@ -252,10 +298,27 @@ export function ChildProfilesSection({
                 <input
                   type="date"
                   value={formState.birthDate}
-                  onChange={(event) =>
-                    setFormState((current) => ({ ...current, birthDate: event.target.value }))
-                  }
+                  max={getDefaultBirthDate()}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    const derivedAgeMonths = deriveAgeMonthsFromBirthDate(nextValue);
+
+                    setFormState((current) => ({
+                      ...current,
+                      birthDate: nextValue,
+                      ageMonths:
+                        derivedAgeMonths === null ? current.ageMonths : String(derivedAgeMonths)
+                    }));
+                  }}
+                  onBlur={() => setTouchedFields((current) => ({ ...current, birthDate: true }))}
                 />
+                {touchedFields.birthDate && fieldErrors.birthDate ? (
+                  <small className="field-helper error">{fieldErrors.birthDate}</small>
+                ) : (
+                  <small className="field-helper">
+                    생년월일을 먼저 입력해도 오늘 기준 개월 수가 자동으로 맞춰져요.
+                  </small>
+                )}
               </label>
             </div>
 
@@ -276,8 +339,8 @@ export function ChildProfilesSection({
                 type="button"
                 className="secondary"
                 onClick={() => {
-                  setFormState(EMPTY_FORM);
-                  setTouchedFields({ name: false, ageMonths: false });
+                  setFormState(createEmptyFormState());
+                  setTouchedFields({ name: false, ageMonths: false, birthDate: false });
                   setIsComposerOpen(profiles.length === 0);
                   onCancelEdit();
                 }}

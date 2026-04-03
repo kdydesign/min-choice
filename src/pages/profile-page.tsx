@@ -193,7 +193,7 @@ export function ProfilePage() {
 
         <div className="profile-page-actions">
           <button type="button" className="ghost" onClick={() => void signOut()}>
-            {isAnonymous ? "익명 종료" : "로그아웃"}
+            {isAnonymous ? "시작 화면으로" : "로그아웃"}
           </button>
         </div>
       </div>

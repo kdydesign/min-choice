@@ -13,6 +13,7 @@ import {
   continueWithAnonymousSession,
   getAuthIdentityLabel,
   getAuthProviderLabel,
+  isAnonymousSessionPaused,
   isAnonymousSession,
   linkPendingAnonymousUserToCurrentSession,
   signOutSupabase,
@@ -27,6 +28,7 @@ interface AuthContextValue {
   errorMessage: string | null;
   isAuthenticated: boolean;
   isAnonymous: boolean;
+  isAnonymousPaused: boolean;
   canAccessApp: boolean;
   identityLabel: string;
   providerLabel: string;
@@ -141,6 +143,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<AuthContextValue>(() => {
     const isAnonymous = isAnonymousSession(session);
+    const isPaused = isAnonymous && isAnonymousSessionPaused();
     const isAuthenticated = Boolean(session?.user) && !isAnonymous;
 
     return {
@@ -151,7 +154,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       errorMessage,
       isAuthenticated,
       isAnonymous,
-      canAccessApp: Boolean(session?.user),
+      isAnonymousPaused: isPaused,
+      canAccessApp: Boolean(session?.user) && !isPaused,
       identityLabel: getAuthIdentityLabel(session),
       providerLabel: getAuthProviderLabel(session),
       signInWithGoogle: () =>
@@ -165,8 +169,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }),
       signOut: () =>
         runAuthAction(async () => {
-          await signOutSupabase();
-          setSession(null);
+          const nextSession = await signOutSupabase(session);
+          setSession(nextSession);
         }),
       clearError: () => setErrorMessage(null)
     };
