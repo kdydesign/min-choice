@@ -24,7 +24,7 @@ interface MealInputSectionProps {
   onClear: () => void;
   onGenerate: () => void;
   isGenerating?: boolean;
-  progressLabel?: string;
+  loadingLabel?: string;
   progressValue?: number;
 }
 
@@ -37,7 +37,7 @@ export function MealInputSection({
   onClear,
   onGenerate,
   isGenerating = false,
-  progressLabel,
+  loadingLabel,
   progressValue = 0
 }: MealInputSectionProps) {
   const hasAllergyWarnings = MEAL_TYPES.some((mealType) => allergyWarnings[mealType].length > 0);
@@ -46,16 +46,20 @@ export function MealInputSection({
     : "알레르기 재료가 입력되면 추천 계산에서 자동으로 제외해요.";
 
   return (
-    <section id={panelId} className="meal-plan-input-screen">
+    <section
+      id={panelId}
+      className={`meal-plan-input-screen ${isGenerating ? "is-busy" : ""}`}
+      aria-busy={isGenerating}
+    >
       {!selectedChild ? (
         <div className="empty-state">식단을 만들 아이를 먼저 선택해 주세요.</div>
       ) : (
         <>
-          {isGenerating && progressLabel ? (
+          {isGenerating && loadingLabel ? (
             <div className="progress-card meal-plan-progress-card" aria-live="polite">
               <div className="progress-copy">
                 <strong>식단을 준비하고 있어요</strong>
-                <span className="subtle">{progressLabel}</span>
+                <span className="subtle">{loadingLabel}</span>
               </div>
               <div className="progress-track" aria-hidden="true">
                 <div className="progress-bar" style={{ width: `${progressValue}%` }} />
@@ -82,6 +86,7 @@ export function MealInputSection({
                       ? `${allergyWarnings[mealType].join(", ")}는 알레르기 재료예요.`
                       : undefined
                   }
+                  disabled={isGenerating}
                   onChange={(ingredients) => onChange(mealType, ingredients)}
                 />
               </article>

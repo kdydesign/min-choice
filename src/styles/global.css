@@ -799,6 +799,11 @@ input::placeholder {
   cursor: default;
 }
 
+.tag-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .notice {
   border-radius: var(--radius-sm);
   padding: 13px 15px;
@@ -2256,6 +2261,12 @@ li + li {
   background: #fff;
 }
 
+.tag-list input:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+  background: #f8fafc;
+}
+
 .planner-warning-card {
   padding: 16px;
   border-radius: 18px;
@@ -2343,6 +2354,24 @@ li + li {
 
 .meal-plan-generate-button:hover {
   background: #357abd;
+}
+
+.meal-plan-page-header-side:disabled,
+.meal-plan-selected-child-action:disabled,
+.meal-plan-generate-button:disabled,
+.meal-plan-reset-link:disabled,
+.meal-result-header-side:disabled,
+.meal-result-toggle:disabled,
+.meal-result-secondary-button:disabled,
+.meal-result-primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  box-shadow: none;
+}
+
+.meal-plan-input-screen.is-busy,
+.meal-result-screen.is-busy {
+  user-select: none;
 }
 
 .meal-plan-reset-link {

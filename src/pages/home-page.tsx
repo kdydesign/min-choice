@@ -29,6 +29,20 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+type GenerationStage = "normalizing" | "generating" | "saving";
+
+const GENERATION_STAGE_LABELS: Record<GenerationStage, string> = {
+  normalizing: "재료 이름을 정리하고 있어요.",
+  generating: "식단을 만들고 있어요.",
+  saving: "추천 식단을 저장하고 있어요."
+};
+
+const GENERATION_STAGE_PROGRESS: Record<GenerationStage, number> = {
+  normalizing: 20,
+  generating: 80,
+  saving: 100
+};
+
 function hasAnyMealInput(draft: MealDraft) {
   return MEAL_TYPES.some((mealType) => draft[mealType].length > 0);
 }
@@ -61,10 +75,7 @@ export function HomePage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [hasSeededInitialDraft, setHasSeededInitialDraft] = useState(false);
   const [todayView, setTodayView] = useState<"input" | "result">("input");
-  const [generationProgress, setGenerationProgress] = useState<{
-    label: string;
-    value: number;
-  } | null>(null);
+  const [generationStage, setGenerationStage] = useState<GenerationStage | null>(null);
 
   const {
     data: profiles = [],
@@ -146,6 +157,9 @@ export function HomePage() {
   const latestPlan = history[0] ?? null;
   const hasPendingChanges = useMemo(() => !areMealInputsEqual(mealDraft, latestPlan), [latestPlan, mealDraft]);
   const visiblePlan = hasPendingChanges ? null : latestPlan;
+  const isGenerating = generationStage !== null;
+  const generationLabel = generationStage ? GENERATION_STAGE_LABELS[generationStage] : null;
+  const generationProgressValue = generationStage ? GENERATION_STAGE_PROGRESS[generationStage] : 0;
 
   const allergyWarnings = useMemo<Record<MealType, string[]>>(
     () => ({
@@ -157,16 +171,13 @@ export function HomePage() {
   );
 
   async function handleGeneratePlan() {
-    if (!selectedChild) {
+    if (!selectedChild || isGenerating) {
       return;
     }
 
     try {
       setActionError(null);
-      setGenerationProgress({
-        label: "재료 이름을 정리하고 있어요.",
-        value: 24
-      });
+      setGenerationStage("normalizing");
 
       const normalizedDraft = {
         breakfast: (await normalizeIngredients(mealDraft.breakfast)).map((item) => item.standardKey),
@@ -175,10 +186,7 @@ export function HomePage() {
         updatedAt: new Date().toISOString()
       } satisfies MealDraft;
 
-      setGenerationProgress({
-        label: "오늘 3끼에 맞는 메뉴를 고르고 있어요.",
-        value: 62
-      });
+      setGenerationStage("generating");
 
       const plan = await generateMealPlan({
         child: selectedChild,
@@ -189,10 +197,7 @@ export function HomePage() {
         }
       });
 
-      setGenerationProgress({
-        label: "추천 식단을 저장하고 있어요.",
-        value: 88
-      });
+      setGenerationStage("saving");
 
       const nextPlanPayload: SaveMealPlanInput = {
         plan,
@@ -209,20 +214,15 @@ export function HomePage() {
       setHasSeededInitialDraft(true);
       setSelectedPlan(savedPlan.id);
       setTodayView("result");
-      setGenerationProgress({
-        label: "오늘 식단 준비가 끝났어요.",
-        value: 100
-      });
-
-      window.setTimeout(() => setGenerationProgress(null), 650);
     } catch (error) {
-      setGenerationProgress(null);
       setActionError(getErrorMessage(error, "식단을 생성하지 못했어요."));
+    } finally {
+      setGenerationStage(null);
     }
   }
 
   function handleChangeMealDraft(mealType: MealType, ingredients: string[]) {
-    if (!selectedChild) {
+    if (!selectedChild || isGenerating) {
       return;
     }
 
@@ -239,7 +239,7 @@ export function HomePage() {
   }
 
   function handleClearMealDraft() {
-    if (!selectedChild) {
+    if (!selectedChild || isGenerating) {
       return;
     }
 
@@ -305,8 +305,16 @@ export function HomePage() {
           <TodayMealResultScreen
             childName={selectedChild?.name ?? ""}
             plan={visiblePlan}
-            isGenerating={savePlanMutation.isPending || Boolean(generationProgress)}
-            onBack={() => setTodayView("input")}
+            isGenerating={isGenerating}
+            loadingLabel={generationLabel ?? undefined}
+            progressValue={generationProgressValue}
+            onBack={() => {
+              if (isGenerating) {
+                return;
+              }
+
+              setTodayView("input");
+            }}
             onRegenerate={selectedChild ? handleGeneratePlan : undefined}
           />
         ) : null}
@@ -326,8 +334,15 @@ export function HomePage() {
           <button
             type="button"
             className="meal-plan-page-header-side"
-            onClick={() => navigate("/profile")}
+            onClick={() => {
+              if (isGenerating) {
+                return;
+              }
+
+              navigate("/profile");
+            }}
             aria-label="아이 프로필로 이동"
+            disabled={isGenerating}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -355,8 +370,15 @@ export function HomePage() {
           <button
             type="button"
             className="meal-plan-selected-child-action"
-            onClick={() => navigate("/profile")}
+            onClick={() => {
+              if (isGenerating) {
+                return;
+              }
+
+              navigate("/profile");
+            }}
             aria-label="아이 프로필 수정"
+            disabled={isGenerating}
           >
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
@@ -417,9 +439,9 @@ export function HomePage() {
         onChange={handleChangeMealDraft}
         onClear={handleClearMealDraft}
         onGenerate={handleGeneratePlan}
-        isGenerating={savePlanMutation.isPending || Boolean(generationProgress)}
-        progressLabel={generationProgress?.label}
-        progressValue={generationProgress?.value}
+        isGenerating={isGenerating}
+        loadingLabel={generationLabel ?? undefined}
+        progressValue={generationProgressValue}
       />
     </AppFrame>
   );

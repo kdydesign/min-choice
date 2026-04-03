@@ -22,6 +22,8 @@ interface TodayMealResultScreenProps {
   childName: string;
   plan: DailyMealPlan | null;
   isGenerating?: boolean;
+  loadingLabel?: string;
+  progressValue?: number;
   onBack: () => void;
   onRegenerate?: () => void;
 }
@@ -34,6 +36,8 @@ export function TodayMealResultScreen({
   childName,
   plan,
   isGenerating = false,
+  loadingLabel,
+  progressValue = 0,
   onBack,
   onRegenerate
 }: TodayMealResultScreenProps) {
@@ -53,6 +57,7 @@ export function TodayMealResultScreen({
               className="meal-result-header-side"
               onClick={onBack}
               aria-label="재료 입력으로 돌아가기"
+              disabled={isGenerating}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -79,7 +84,7 @@ export function TodayMealResultScreen({
   }
 
   return (
-    <div className="meal-result-screen">
+    <div className={`meal-result-screen ${isGenerating ? "is-busy" : ""}`} aria-busy={isGenerating}>
       <header className="meal-result-header">
         <div className="meal-result-header-bar">
           <button
@@ -87,6 +92,7 @@ export function TodayMealResultScreen({
             className="meal-result-header-side"
             onClick={onBack}
             aria-label="재료 입력으로 돌아가기"
+            disabled={isGenerating}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -107,6 +113,18 @@ export function TodayMealResultScreen({
           <h1>오늘의 추천 식단</h1>
           <p>{childName}를 위한 맞춤 식단입니다</p>
         </section>
+
+        {isGenerating && loadingLabel ? (
+          <div className="progress-card meal-plan-progress-card meal-result-progress-card" aria-live="polite">
+            <div className="progress-copy">
+              <strong>식단을 다시 준비하고 있어요</strong>
+              <span className="subtle">{loadingLabel}</span>
+            </div>
+            <div className="progress-track" aria-hidden="true">
+              <div className="progress-bar" style={{ width: `${progressValue}%` }} />
+            </div>
+          </div>
+        ) : null}
 
         {MEAL_TYPES.map((mealType) => {
           const meal = plan.results[mealType];
@@ -149,6 +167,7 @@ export function TodayMealResultScreen({
                   onClick={() =>
                     setExpandedMealType((current) => (current === mealType ? null : mealType))
                   }
+                  disabled={isGenerating}
                 >
                   <span>{isExpanded ? "접기" : "상세보기"}</span>
                   <svg
@@ -246,7 +265,12 @@ export function TodayMealResultScreen({
         </section>
 
         <div className="meal-result-actions">
-          <button type="button" className="meal-result-secondary-button" onClick={onBack}>
+          <button
+            type="button"
+            className="meal-result-secondary-button"
+            onClick={onBack}
+            disabled={isGenerating}
+          >
             재료 다시 입력
           </button>
           {onRegenerate ? (

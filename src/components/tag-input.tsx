@@ -10,6 +10,7 @@ interface TagInputProps {
   warningTags?: string[];
   hideLabel?: boolean;
   tone?: "neutral" | "breakfast" | "lunch" | "dinner" | "profile";
+  disabled?: boolean;
 }
 
 export function TagInput({
@@ -20,13 +21,14 @@ export function TagInput({
   helperText,
   warningTags = [],
   hideLabel = false,
-  tone = "neutral"
+  tone = "neutral",
+  disabled = false
 }: TagInputProps) {
   const [draftValue, setDraftValue] = useState("");
   const warningSet = useMemo(() => new Set(warningTags), [warningTags]);
 
   function commitDraft() {
-    if (!draftValue.trim()) {
+    if (disabled || !draftValue.trim()) {
       return;
     }
 
@@ -35,6 +37,10 @@ export function TagInput({
   }
 
   function removeTag(tag: string) {
+    if (disabled) {
+      return;
+    }
+
     onChange(value.filter((item) => item !== tag));
   }
 
@@ -49,6 +55,7 @@ export function TagInput({
               type="button"
               className={`tag-button ${warningSet.has(tag) ? "warning" : ""}`}
               onClick={() => removeTag(tag)}
+              disabled={disabled}
             >
               {tag}
               <span aria-hidden="true">×</span>
@@ -65,6 +72,7 @@ export function TagInput({
             }}
             onBlur={commitDraft}
             placeholder={placeholder}
+            disabled={disabled}
           />
         </div>
       </div>
