@@ -1,73 +1,67 @@
-# 12개월 아이 하루 식단표
+# 베베 초이스 (Bebe Choice)
 
-`product-spec.md`와 `AGENTS.md`를 기준으로 리팩토링한 모바일 우선 PWA MVP입니다.
+## 문서 목적
+
+이 문서는 프로젝트를 빠르게 이해하고 실행하기 위한 **가장 짧은 진입 문서**입니다.
+
+## 서비스 한 줄 소개
+
+베베 초이스는 **12개월 전후 아이를 위한 하루 3끼 식단을 추천하는 모바일 우선 PWA**입니다.  
+보호자는 아이 프로필을 등록하고, 아침/점심/저녁 재료를 입력한 뒤 하루 식단을 생성할 수 있습니다.
 
 ## 현재 구현 범위
 
-- React + TypeScript + Vite 기반 PWA
-- Supabase Auth 기반 Google 로그인, 익명 체험
-- 아이 프로필 생성, 수정, 삭제, 선택
-- 아이별 알레르기 재료 관리
-- 아침 / 점심 / 저녁 재료 태그 입력
-- 규칙 기반 메뉴 후보 선택
-- Supabase Edge Functions 연동 기반 재료 정규화 / 식단 생성 호출
-- 서버사이드 AI 추천 문구 / 조리법 3줄 / 주의사항 생성
-- AI 실패 시 fallback 설명 문구, 기본 조리법, 부족 재료 / 대체 재료 유지
-- 하루 3끼 식단 생성과 아이별 최근 이력 확인
+- Google 로그인 + 익명 체험
+- 아이 프로필 및 알레르기 관리
+- 아침 / 점심 / 저녁 재료 입력
+- 규칙 기반 메뉴 선택 + 서버사이드 AI 문구 생성
+- 최근 식단 조회
+- Vercel 배포
 
-## 실행
+## 실행 방법
 
 ```bash
 npm install
 npm run dev
 npm run test
+npm run build
 ```
 
 기본 개발 주소는 `http://localhost:4173`입니다.
 
-## 환경 변수
+## 필수 환경 변수
 
-`.env.local` 파일을 만들고 아래 값을 채워 주세요.
+`.env.local` 파일에 아래 값을 설정합니다.
 
 ```env
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-예시는 `.env.example`에 있습니다.
+예시는 [./.env.example](./.env.example)에 있습니다.
 
-Edge Functions에서 AI 생성을 사용하려면 Supabase 프로젝트 또는 로컬 개발 환경에 아래 시크릿도 설정해 주세요.
+## 서버 시크릿
+
+식단 생성 시 AI 문구를 사용하려면 Supabase Edge Function 시크릿에 아래 값을 설정해야 합니다.
 
 ```bash
 supabase secrets set OPENAI_API_KEY=your_openai_api_key
 supabase secrets set OPENAI_MODEL=gpt-4.1
 ```
 
-`OPENAI_API_KEY`가 없으면 식단 생성은 계속 동작하지만, AI 문구 대신 fallback 문구를 사용합니다.
+`OPENAI_API_KEY`가 없거나 호출이 실패하면 식단 생성은 계속 동작하지만, AI 문구 대신 fallback 문구를 사용합니다.
 
-## Supabase
+## 참고 메모
 
-- `src/lib/env.ts`에서 런타임 env를 정리합니다.
-- `src/lib/supabase.ts`에서 브라우저용 Supabase 클라이언트를 생성합니다.
-- 앱은 익명 세션을 먼저 만들 수 있고, 이후 Google 로그인 시 익명 데이터를 계정에 연결합니다.
-- `supabase/config.toml`은 로컬 Supabase 개발 설정입니다.
-- `supabase/migrations`에는 hosted 프로젝트에 반영된 스키마와 seed 마이그레이션이 들어 있습니다.
-- `supabase/functions/generate-meal-plan`은 규칙 기반 후보 선택 뒤 OpenAI 호출, 응답 검증, fallback, AI 로그 적재를 담당합니다.
-- 아이 프로필 / 식단 이력 CRUD는 Supabase를 source of truth로 사용합니다.
+- 인증: `Google 로그인 + 익명 체험`
+- 배포 주소: `https://bebe-choice.vercel.app`
+- AI 호출: 클라이언트 직접 호출이 아니라 서버사이드 Edge Function 경유
 
-## 구조
+## 관련 문서
 
-- `src/app`: 앱 엔트리, 라우터, 프로바이더
-- `src/pages`: 라우트 단위 페이지
-- `src/components`: 공용 UI 컴포넌트
-- `src/features`: 도메인별 기능
-- `src/services`: 브라우저 저장소 등 인프라성 유틸
-- `src/store`: Zustand 상태
-- `src/types`: 도메인 타입
-
-## 참고
-
-현재 버전은 Google 로그인, 익명 체험, Supabase CRUD, Edge Functions, OpenAI 연동, 핵심 순수 로직 단위 테스트까지 반영된 MVP입니다.
-
-후속 TODO:
-- Kakao 로그인은 provider 연동 코드와 문서 초안은 준비했지만, Kakao 동의 항목 정책 이슈로 인해 현재 운영 경로에서는 비활성화했습니다.
+- 제품 스펙: [./docs/product-spec.md](./docs/product-spec.md)
+- UX 스펙: [./docs/ux-spec.md](./docs/ux-spec.md)
+- 시스템 구조: [./docs/architecture.md](./docs/architecture.md)
+- 구현 규칙: [./AGENTS.md](./AGENTS.md)
+- 배포 문서: [./docs/deployment/vercel-hosting.md](./docs/deployment/vercel-hosting.md)
+- 과거 UX 참고: [./docs/archive/ux-requirements-v2.md](./docs/archive/ux-requirements-v2.md)
