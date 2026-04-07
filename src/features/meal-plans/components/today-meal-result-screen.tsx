@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { CommonHeader } from "../../../components/common-header";
 import type { DailyMealPlan, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
 import { MEAL_LABELS } from "../../menus/data/menu-catalog";
+import { MealGenerationProgress, type MealGenerationStage } from "./meal-generation-progress";
 
 const MEAL_META: Record<MealType, { icon: string; color: string }> = {
   breakfast: {
@@ -22,8 +24,7 @@ interface TodayMealResultScreenProps {
   childName: string;
   plan: DailyMealPlan | null;
   isGenerating?: boolean;
-  loadingLabel?: string;
-  progressValue?: number;
+  generationStage?: MealGenerationStage | null;
   onBack: () => void;
   onRegenerate?: () => void;
 }
@@ -36,8 +37,7 @@ export function TodayMealResultScreen({
   childName,
   plan,
   isGenerating = false,
-  loadingLabel,
-  progressValue = 0,
+  generationStage = null,
   onBack,
   onRegenerate
 }: TodayMealResultScreenProps) {
@@ -50,28 +50,7 @@ export function TodayMealResultScreen({
   if (!plan) {
     return (
       <div className="meal-result-screen">
-        <header className="meal-result-header">
-          <div className="meal-result-header-bar">
-            <button
-              type="button"
-              className="meal-result-header-side"
-              onClick={onBack}
-              aria-label="재료 입력으로 돌아가기"
-              disabled={isGenerating}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="meal-result-brand">
-              <div className="meal-result-brand-mark" aria-hidden="true">
-                👶
-              </div>
-              <h1>베베 초이스</h1>
-            </div>
-            <div className="meal-result-header-placeholder" aria-hidden="true" />
-          </div>
-        </header>
+        <CommonHeader title="베베 초이스" onBack={isGenerating ? undefined : onBack} />
 
         <div className="meal-result-content">
           <section className="figma-screen-head">
@@ -85,28 +64,7 @@ export function TodayMealResultScreen({
 
   return (
     <div className={`meal-result-screen ${isGenerating ? "is-busy" : ""}`} aria-busy={isGenerating}>
-      <header className="meal-result-header">
-        <div className="meal-result-header-bar">
-          <button
-            type="button"
-            className="meal-result-header-side"
-            onClick={onBack}
-            aria-label="재료 입력으로 돌아가기"
-            disabled={isGenerating}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="meal-result-brand">
-            <div className="meal-result-brand-mark" aria-hidden="true">
-              👶
-            </div>
-            <h1>베베 초이스</h1>
-          </div>
-          <div className="meal-result-header-placeholder" aria-hidden="true" />
-        </div>
-      </header>
+      <CommonHeader title="베베 초이스" onBack={isGenerating ? undefined : onBack} />
 
       <div className="meal-result-content">
         <section className="meal-result-title">
@@ -114,16 +72,12 @@ export function TodayMealResultScreen({
           <p>{childName}를 위한 맞춤 식단입니다</p>
         </section>
 
-        {isGenerating && loadingLabel ? (
-          <div className="progress-card meal-plan-progress-card meal-result-progress-card" aria-live="polite">
-            <div className="progress-copy">
-              <strong>식단을 다시 준비하고 있어요</strong>
-              <span className="subtle">{loadingLabel}</span>
-            </div>
-            <div className="progress-track" aria-hidden="true">
-              <div className="progress-bar" style={{ width: `${progressValue}%` }} />
-            </div>
-          </div>
+        {isGenerating && generationStage ? (
+          <MealGenerationProgress
+            stage={generationStage}
+            title="식단 생성 중"
+            className="meal-plan-progress-card meal-result-progress-card"
+          />
         ) : null}
 
         {MEAL_TYPES.map((mealType) => {
@@ -131,7 +85,7 @@ export function TodayMealResultScreen({
           const isExpanded = expandedMealType === mealType;
 
           return (
-            <article key={mealType} className="meal-result-card">
+            <article key={mealType} className={`meal-result-card meal-result-card-${mealType}`}>
               <div className="meal-result-card-head">
                 <span className="meal-result-card-emoji" aria-hidden="true">
                   {MEAL_META[mealType].icon}

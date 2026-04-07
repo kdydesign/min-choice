@@ -10,6 +10,10 @@ interface TagInputProps {
   warningTags?: string[];
   hideLabel?: boolean;
   tone?: "neutral" | "breakfast" | "lunch" | "dinner" | "profile";
+  inputStyle?: "default" | "dashed-add";
+  expandedPlaceholder?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
   disabled?: boolean;
 }
 
@@ -22,18 +26,30 @@ export function TagInput({
   warningTags = [],
   hideLabel = false,
   tone = "neutral",
+  inputStyle = "default",
+  expandedPlaceholder = "재료를 입력하세요 (쉼표나 줄바꿈으로 구분)",
+  confirmLabel = "추가",
+  cancelLabel = "취소",
   disabled = false
 }: TagInputProps) {
   const [draftValue, setDraftValue] = useState("");
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
   const warningSet = useMemo(() => new Set(warningTags), [warningTags]);
 
   function commitDraft() {
-    if (disabled || !draftValue.trim()) {
+    if (disabled) {
       return;
     }
 
-    onChange(uniqueIngredients([...value, ...parseDelimitedIngredients(draftValue)]));
+    const nextIngredients = parseDelimitedIngredients(draftValue);
+
+    if (nextIngredients.length === 0) {
+      return;
+    }
+
+    onChange(uniqueIngredients([...value, ...nextIngredients]));
     setDraftValue("");
+    setIsComposerOpen(false);
   }
 
   function removeTag(tag: string) {
@@ -44,10 +60,24 @@ export function TagInput({
     onChange(value.filter((item) => item !== tag));
   }
 
+  function closeComposer() {
+    setDraftValue("");
+    setIsComposerOpen(false);
+  }
+
+  const tagInputClassName = [
+    "tag-input",
+    `tag-input-${tone}`,
+    inputStyle === "dashed-add" ? "is-dashed-add" : "",
+    isComposerOpen ? "is-expanded" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <label className="field">
+    <div className="field">
       <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
-      <div className={`tag-input tag-input-${tone}`}>
+      <div className={tagInputClassName} data-expanded={isComposerOpen}>
         <div className="tag-list">
           {value.map((tag) => (
             <button
@@ -61,22 +91,66 @@ export function TagInput({
               <span aria-hidden="true">×</span>
             </button>
           ))}
-          <input
-            value={draftValue}
-            onChange={(event) => setDraftValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === ",") {
-                event.preventDefault();
-                commitDraft();
-              }
-            }}
-            onBlur={commitDraft}
-            placeholder={placeholder}
-            disabled={disabled}
-          />
+
+          {inputStyle === "dashed-add" ? (
+            isComposerOpen ? (
+              <div className="tag-input-composer">
+                <textarea
+                  value={draftValue}
+                  onChange={(event) => setDraftValue(event.target.value)}
+                  placeholder={expandedPlaceholder}
+                  disabled={disabled}
+                  rows={3}
+                  aria-label={label}
+                  autoFocus
+                />
+                <div className="tag-input-composer-actions">
+                  <button type="button" className="tag-input-composer-confirm" onClick={commitDraft} disabled={disabled}>
+                    {confirmLabel}
+                  </button>
+                  <button type="button" className="tag-input-composer-cancel" onClick={closeComposer} disabled={disabled}>
+                    {cancelLabel}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="tag-input-entry dashed-add"
+                onClick={() => {
+                  if (!disabled) {
+                    setIsComposerOpen(true);
+                  }
+                }}
+                disabled={disabled}
+              >
+                <span className="tag-input-entry-icon" aria-hidden="true">
+                  +
+                </span>
+                <span className="tag-input-entry-label">{placeholder}</span>
+              </button>
+            )
+          ) : (
+            <div className="tag-input-entry">
+              <input
+                value={draftValue}
+                onChange={(event) => setDraftValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault();
+                    commitDraft();
+                  }
+                }}
+                onBlur={commitDraft}
+                placeholder={placeholder}
+                disabled={disabled}
+                aria-label={label}
+              />
+            </div>
+          )}
         </div>
       </div>
       {helperText ? <small className="field-helper">{helperText}</small> : null}
-    </label>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AppFrame } from "../components/app-frame";
+import { CommonBottomMenu } from "../components/common-bottom-menu";
 import { ErrorState } from "../components/error-state";
 import { LoadingState } from "../components/loading-state";
 import { ChildProfilesSection } from "../features/children/components/child-profiles-section";
@@ -128,13 +128,8 @@ export function ProfilePage() {
     (profilesError ? getErrorMessage(profilesError, "아이 프로필을 불러오지 못했어요.") : null);
 
   return (
-    <AppFrame
-      title={profiles.length === 0 ? "첫 아이 프로필" : "아이 프로필"}
-      subtitle="아이 정보를 저장해 두면 오늘 식단과 최근 기록을 더 빠르게 이어서 볼 수 있어요."
-      showIntro={false}
-      showTopbar={false}
-    >
-      <div className="profile-selection-layout">
+    <div className="profile-figma-page">
+      <main className="profile-selection-layout">
         <section className="profile-selection-header">
           <div className="profile-selection-header-bar">
             <button
@@ -192,11 +187,36 @@ export function ProfilePage() {
         />
 
         <div className="profile-page-actions">
-          <button type="button" className="ghost" onClick={() => void signOut()}>
-            {isAnonymous ? "시작 화면으로" : "로그아웃"}
+          <button type="button" className="profile-selection-logout-button" onClick={() => void signOut()}>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M15 16.5L19.5 12L15 7.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M19.5 12H10.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M13 20H7.5C6.67157 20 6 19.3284 6 18.5V5.5C6 4.67157 6.67157 4 7.5 4H13"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>{isAnonymous ? "시작 화면으로" : "로그아웃"}</span>
           </button>
         </div>
-      </div>
-    </AppFrame>
+      </main>
+
+      <CommonBottomMenu />
+    </div>
   );
 }

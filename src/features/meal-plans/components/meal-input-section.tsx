@@ -1,19 +1,8 @@
-import { TagInput } from "../../../components/tag-input";
 import type { ChildProfile, MealDraft, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
 import { MEAL_LABELS } from "../../menus/data/menu-catalog";
-
-const MEAL_VISUALS: Record<MealType, { warningColor: string }> = {
-  breakfast: {
-    warningColor: "#FFE8B3"
-  },
-  lunch: {
-    warningColor: "#D4E8D4"
-  },
-  dinner: {
-    warningColor: "#FFD4C9"
-  }
-};
+import { MealGenerationProgress, type MealGenerationStage } from "./meal-generation-progress";
+import { MealIngredientCard } from "./meal-ingredient-card";
 
 interface MealInputSectionProps {
   panelId?: string;
@@ -24,8 +13,8 @@ interface MealInputSectionProps {
   onClear: () => void;
   onGenerate: () => void;
   isGenerating?: boolean;
-  loadingLabel?: string;
-  progressValue?: number;
+  generationStage?: MealGenerationStage | null;
+  showReset?: boolean;
 }
 
 export function MealInputSection({
@@ -37,13 +26,17 @@ export function MealInputSection({
   onClear,
   onGenerate,
   isGenerating = false,
-  loadingLabel,
-  progressValue = 0
+  generationStage = null,
+  showReset = true
 }: MealInputSectionProps) {
-  const hasAllergyWarnings = MEAL_TYPES.some((mealType) => allergyWarnings[mealType].length > 0);
-  const allergySummary = selectedChild?.allergies.length
-    ? `${selectedChild.allergies.join(", ")}는 알레르기 재료라 추천에서 제외해 주세요.`
-    : "알레르기 재료가 입력되면 추천 계산에서 자동으로 제외해요.";
+  const hasMealInput = MEAL_TYPES.some((mealType) => draft[mealType].length > 0);
+  const activeWarnings = MEAL_TYPES.flatMap((mealType) => allergyWarnings[mealType]);
+  const allergySummary =
+    activeWarnings.length > 0
+      ? `${activeWarnings.join(", ")}는 알레르기 재료로 추천에서 제외해 주세요.`
+      : selectedChild?.allergies.length
+        ? `${selectedChild.allergies.join(", ")}는 알레르기 재료로 추천에서 제외해 주세요.`
+        : "알레르기 재료는 추천에서 제외해 주세요.";
 
   return (
     <section
@@ -55,41 +48,26 @@ export function MealInputSection({
         <div className="empty-state">식단을 만들 아이를 먼저 선택해 주세요.</div>
       ) : (
         <>
-          {isGenerating && loadingLabel ? (
-            <div className="progress-card meal-plan-progress-card" aria-live="polite">
-              <div className="progress-copy">
-                <strong>식단을 준비하고 있어요</strong>
-                <span className="subtle">{loadingLabel}</span>
-              </div>
-              <div className="progress-track" aria-hidden="true">
-                <div className="progress-bar" style={{ width: `${progressValue}%` }} />
-              </div>
-            </div>
+          {isGenerating && generationStage ? (
+            <MealGenerationProgress
+              stage={generationStage}
+              title="식단 생성 중"
+              className="meal-plan-progress-card"
+            />
           ) : null}
 
           <div className="meal-input-stack">
             {MEAL_TYPES.map((mealType) => (
-              <article key={mealType} className="meal-plan-section-card">
-                <div className="meal-plan-section-head">
-                  <h3>{`${MEAL_LABELS[mealType]} 재료`}</h3>
-                </div>
-
-                <TagInput
-                  label={`${MEAL_LABELS[mealType]} 재료`}
-                  hideLabel
-                  tone={mealType}
-                  value={draft[mealType]}
-                  placeholder="재료 입력"
-                  warningTags={allergyWarnings[mealType]}
-                  helperText={
-                    allergyWarnings[mealType].length > 0
-                      ? `${allergyWarnings[mealType].join(", ")}는 알레르기 재료예요.`
-                      : undefined
-                  }
-                  disabled={isGenerating}
-                  onChange={(ingredients) => onChange(mealType, ingredients)}
-                />
-              </article>
+              <MealIngredientCard
+                key={mealType}
+                mealType={mealType}
+                title={`${MEAL_LABELS[mealType]} 재료`}
+                value={draft[mealType]}
+                warningTags={allergyWarnings[mealType]}
+                placeholder="재료 추가"
+                disabled={isGenerating}
+                onChange={(ingredients) => onChange(mealType, ingredients)}
+              />
             ))}
           </div>
 
@@ -99,21 +77,6 @@ export function MealInputSection({
             </span>
             <div className="meal-plan-info-copy">
               <p>{allergySummary}</p>
-              {hasAllergyWarnings ? (
-                <div className="meal-plan-warning-list">
-                  {MEAL_TYPES.flatMap((mealType) =>
-                    allergyWarnings[mealType].length > 0 ? (
-                      <span
-                        key={mealType}
-                        className="meal-plan-warning-pill"
-                        style={{ backgroundColor: MEAL_VISUALS[mealType].warningColor }}
-                      >
-                        {MEAL_LABELS[mealType]}: {allergyWarnings[mealType].join(", ")}
-                      </span>
-                    ) : []
-                  )}
-                </div>
-              ) : null}
             </div>
           </div>
 
@@ -126,7 +89,7 @@ export function MealInputSection({
             >
               {isGenerating ? "식단 준비 중" : "하루 식단 생성하기"}
             </button>
-            {MEAL_TYPES.some((mealType) => draft[mealType].length > 0) ? (
+            {showReset && hasMealInput ? (
               <button
                 type="button"
                 className="meal-plan-reset-link"

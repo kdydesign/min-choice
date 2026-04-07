@@ -1,14 +1,11 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AppFrame } from "../components/app-frame";
-import { ChildProfileCard } from "../components/child-profile-card";
+import { CommonBottomMenu } from "../components/common-bottom-menu";
 import { ErrorState } from "../components/error-state";
 import { LoadingState } from "../components/loading-state";
-import { ChildSwitcher } from "../features/children/components/child-switcher";
 import { listChildProfiles } from "../features/children/api/child-profile-repository";
 import { MealHistorySection } from "../features/meal-plans/components/meal-history-section";
-import { MealResultsSection } from "../features/meal-plans/components/meal-results-section";
 import { listMealPlansByChild } from "../features/meal-plans/api/meal-plan-repository";
 import { useAppStore } from "../store/use-app-store";
 
@@ -77,78 +74,64 @@ export function HistoryPage() {
     (historyError ? getErrorMessage(historyError, "식단 이력을 불러오지 못했어요.") : null);
   const isPageLoading = isProfilesLoading || (Boolean(selectedChild) && isHistoryLoading);
 
-  function handleScrollToSelectedResult() {
-    document.getElementById("history-selected-result")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
-  }
-
   return (
-    <AppFrame
-      title="저장한 식단"
-      subtitle="최근에 만든 하루 식단을 다시 열어 보고, 결과를 빠르게 비교할 수 있어요."
-      showIntro={false}
-    >
-      <section className="figma-screen-head">
-        <h1>저장한 식단</h1>
-        <p>{selectedChild ? `${selectedChild.name}의 최근 식단 ${history.length}건` : "아이를 먼저 선택해 주세요"}</p>
+    <div className="history-figma-page">
+      <section className="history-figma-header">
+        <button
+          type="button"
+          className="history-figma-profile-button"
+          onClick={() => navigate("/profile")}
+          aria-label="아이 프로필로 이동"
+        >
+          <span className="history-figma-profile-avatar" aria-hidden="true">
+            👶
+          </span>
+          <span className="history-figma-profile-copy">
+            <strong>{selectedChild ? `${selectedChild.name}의 식단 이력` : "아이의 식단 이력"}</strong>
+            <span>{selectedChild ? `${selectedChild.ageMonths}개월` : "아이를 먼저 선택해 주세요"}</span>
+          </span>
+        </button>
       </section>
 
-      {selectedChild ? (
-        <ChildProfileCard
-          child={selectedChild}
-          label="최근 식단 기준 아이"
-          tone="neutral"
-          helperText={`저장된 식단 ${history.length}건을 최신순으로 보여주고 있어요.`}
-        />
-      ) : null}
+      <main className="history-figma-content">
+        {pageError ? (
+          <ErrorState
+            title="최근 식단을 불러오지 못했어요"
+            description={pageError}
+            action={
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => {
+                  void refetchProfiles();
+                  void refetchHistory();
+                }}
+              >
+                다시 시도
+              </button>
+            }
+          />
+        ) : null}
 
-      {pageError ? (
-        <ErrorState
-          title="최근 식단을 불러오지 못했어요"
-          description={pageError}
-          action={
-            <button
-              type="button"
-              className="secondary small"
-              onClick={() => {
-                void refetchProfiles();
-                void refetchHistory();
-              }}
-            >
-              다시 시도
-            </button>
-          }
-        />
-      ) : null}
+        {isPageLoading && !pageError ? (
+          <LoadingState
+            title="최근 식단을 준비하고 있어요"
+            description="선택한 아이의 저장된 식단 기록을 불러오는 중이에요."
+          />
+        ) : null}
 
-      {isPageLoading && !pageError ? (
-        <LoadingState
-          title="최근 식단을 준비하고 있어요"
-          description="선택한 아이의 저장된 식단 기록을 차례대로 불러오는 중이에요."
-        />
-      ) : null}
+        {!pageError && !isPageLoading ? (
+          <MealHistorySection
+            selectedChild={selectedChild}
+            history={history}
+            selectedPlanId={selectedPlan?.id ?? ""}
+            onLoad={(planId) => setSelectedPlan(planId)}
+            onCreatePlan={() => navigate("/")}
+          />
+        ) : null}
+      </main>
 
-      <ChildSwitcher
-        profiles={profiles}
-        selectedChildId={selectedChildId}
-        onSelect={(childId) => {
-          setSelectedChild(childId);
-          setSelectedPlan("");
-        }}
-      />
-
-      <MealHistorySection
-        selectedChild={selectedChild}
-        history={history}
-        selectedPlanId={selectedPlan?.id ?? ""}
-        onLoad={(planId) => setSelectedPlan(planId)}
-        onCreatePlan={() => navigate("/")}
-        onViewSelectedDetails={selectedPlan ? handleScrollToSelectedResult : undefined}
-      />
-
-      <MealResultsSection panelId="history-selected-result" plan={selectedPlan} />
-    </AppFrame>
+      <CommonBottomMenu />
+    </div>
   );
 }

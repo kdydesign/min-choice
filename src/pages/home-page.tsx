@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AppFrame } from "../components/app-frame";
+import { CommonBottomMenu } from "../components/common-bottom-menu";
+import { CommonHeader } from "../components/common-header";
 import { ErrorState } from "../components/error-state";
 import { LoadingState } from "../components/loading-state";
 import { listChildProfiles } from "../features/children/api/child-profile-repository";
@@ -24,24 +25,11 @@ import { generateMealPlan } from "../features/meal-plans/api/generate-meal-plan-
 import { MEAL_TYPES } from "../types/domain";
 import { normalizeIngredients } from "../features/ingredients/api/normalize-ingredients-service";
 import { TodayMealResultScreen } from "../features/meal-plans/components/today-meal-result-screen";
+import type { MealGenerationStage } from "../features/meal-plans/components/meal-generation-progress";
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
-
-type GenerationStage = "normalizing" | "generating" | "saving";
-
-const GENERATION_STAGE_LABELS: Record<GenerationStage, string> = {
-  normalizing: "재료 이름을 정리하고 있어요.",
-  generating: "식단을 만들고 있어요.",
-  saving: "추천 식단을 저장하고 있어요."
-};
-
-const GENERATION_STAGE_PROGRESS: Record<GenerationStage, number> = {
-  normalizing: 20,
-  generating: 80,
-  saving: 100
-};
 
 function hasAnyMealInput(draft: MealDraft) {
   return MEAL_TYPES.some((mealType) => draft[mealType].length > 0);
@@ -75,7 +63,7 @@ export function HomePage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [hasSeededInitialDraft, setHasSeededInitialDraft] = useState(false);
   const [todayView, setTodayView] = useState<"input" | "result">("input");
-  const [generationStage, setGenerationStage] = useState<GenerationStage | null>(null);
+  const [generationStage, setGenerationStage] = useState<MealGenerationStage | null>(null);
 
   const {
     data: profiles = [],
@@ -158,8 +146,6 @@ export function HomePage() {
   const hasPendingChanges = useMemo(() => !areMealInputsEqual(mealDraft, latestPlan), [latestPlan, mealDraft]);
   const visiblePlan = hasPendingChanges ? null : latestPlan;
   const isGenerating = generationStage !== null;
-  const generationLabel = generationStage ? GENERATION_STAGE_LABELS[generationStage] : null;
-  const generationProgressValue = generationStage ? GENERATION_STAGE_PROGRESS[generationStage] : 0;
 
   const allergyWarnings = useMemo<Record<MealType, string[]>>(
     () => ({
@@ -269,12 +255,7 @@ export function HomePage() {
 
   if (todayView === "result") {
     return (
-      <AppFrame
-        title="오늘의 식단"
-        subtitle="집에 있는 재료를 끼니별로 적으면, 하루 3끼를 바로 추천해요."
-        showIntro={false}
-        showTopbar={false}
-      >
+      <div className="meal-result-page">
         {pageError ? (
           <ErrorState
             title="오늘 식단 화면을 준비하지 못했어요"
@@ -306,8 +287,7 @@ export function HomePage() {
             childName={selectedChild?.name ?? ""}
             plan={visiblePlan}
             isGenerating={isGenerating}
-            loadingLabel={generationLabel ?? undefined}
-            progressValue={generationProgressValue}
+            generationStage={generationStage}
             onBack={() => {
               if (isGenerating) {
                 return;
@@ -318,131 +298,98 @@ export function HomePage() {
             onRegenerate={selectedChild ? handleGeneratePlan : undefined}
           />
         ) : null}
-      </AppFrame>
+
+        <CommonBottomMenu />
+      </div>
     );
   }
 
   return (
-    <AppFrame
-      title="오늘의 식단"
-      subtitle="집에 있는 재료를 끼니별로 적으면, 하루 3끼를 바로 추천해요."
-      showIntro={false}
-      showTopbar={false}
-    >
-      <section className="meal-plan-page-header">
-        <div className="meal-plan-page-header-bar">
-          <button
-            type="button"
-            className="meal-plan-page-header-side"
-            onClick={() => {
-              if (isGenerating) {
-                return;
-              }
+    <div className="meal-plan-figma-page">
+      <CommonHeader
+        title="베베 초이스"
+        onBack={() => {
+          if (isGenerating) {
+            return;
+          }
 
-              navigate("/profile");
-            }}
-            aria-label="아이 프로필로 이동"
-            disabled={isGenerating}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="meal-plan-page-brand">
-            <div className="meal-plan-page-brand-mark" aria-hidden="true">
+          navigate("/profile");
+        }}
+      />
+
+      <main className="meal-plan-figma-content">
+        {selectedChild ? (
+          <section className="meal-plan-selected-child-card">
+            <div className="meal-plan-selected-child-avatar" aria-hidden="true">
               👶
             </div>
-            <h1>베베 초이스</h1>
-          </div>
-          <div className="meal-plan-page-header-placeholder" aria-hidden="true" />
-        </div>
-      </section>
-
-      {selectedChild ? (
-        <section className="meal-plan-selected-child-card">
-          <div className="meal-plan-selected-child-avatar" aria-hidden="true">
-            👶
-          </div>
-          <div className="meal-plan-selected-child-copy">
-            <strong>{selectedChild.name}</strong>
-            <span>{selectedChild.ageMonths}개월</span>
-          </div>
-          <button
-            type="button"
-            className="meal-plan-selected-child-action"
-            onClick={() => {
-              if (isGenerating) {
-                return;
-              }
-
-              navigate("/profile");
-            }}
-            aria-label="아이 프로필 수정"
-            disabled={isGenerating}
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-            </svg>
-          </button>
-        </section>
-      ) : (
-        <section className="figma-screen-head">
-          <h1>오늘의 식단</h1>
-          <p>아이를 먼저 선택해 주세요</p>
-        </section>
-      )}
-
-      {pageError ? (
-        <ErrorState
-          title="오늘 식단 화면을 준비하지 못했어요"
-          description={pageError}
-          action={
+            <div className="meal-plan-selected-child-copy">
+              <strong>{selectedChild.name}</strong>
+              <span>{selectedChild.ageMonths}개월</span>
+            </div>
             <button
               type="button"
-              className="secondary small"
+              className="meal-plan-selected-child-action"
               onClick={() => {
-                void refetchProfiles();
-                void refetchHistory();
+                if (isGenerating) {
+                  return;
+                }
+
+                navigate("/profile");
               }}
+              aria-label="아이 프로필 수정"
+              disabled={isGenerating}
             >
-              다시 시도
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M4 10a1.75 1.75 0 113.5 0A1.75 1.75 0 014 10Zm4.25 0a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0Zm6 0a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0Z" />
+              </svg>
             </button>
-          }
-        />
-      ) : null}
+          </section>
+        ) : null}
 
-      {isPageLoading && !pageError ? (
-        <LoadingState
-          title="오늘 식단 화면을 준비하고 있어요"
-          description="선택한 아이 정보와 최근 식단을 불러오는 중이에요."
-        />
-      ) : null}
+        {pageError ? (
+          <ErrorState
+            title="오늘 식단 화면을 준비하지 못했어요"
+            description={pageError}
+            action={
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => {
+                  void refetchProfiles();
+                  void refetchHistory();
+                }}
+              >
+                다시 시도
+              </button>
+            }
+          />
+        ) : null}
 
-      {selectedChild ? (
-        <section className="figma-screen-head meal-plan-title-copy">
-          <h2>오늘의 식단</h2>
-          <p>{selectedChild.name}를 위한 맞춤 식단입니다</p>
-        </section>
-      ) : null}
+        {isPageLoading && !pageError ? (
+          <LoadingState
+            title="오늘 식단 화면을 준비하고 있어요"
+            description="선택한 아이 정보와 최근 식단을 불러오는 중이에요."
+          />
+        ) : null}
 
-      {hasPendingChanges ? (
-        <div className="notice warning">
-          입력한 재료가 바뀌었어요. 이전 추천은 숨기고 있고, 새로 생성하면 오늘 식단이 갱신돼요.
-        </div>
-      ) : null}
+        {!pageError && !isPageLoading ? (
+          <MealInputSection
+            panelId="meal-input-panel"
+            selectedChild={selectedChild}
+            draft={mealDraft}
+            allergyWarnings={allergyWarnings}
+            onChange={handleChangeMealDraft}
+            onClear={handleClearMealDraft}
+            onGenerate={handleGeneratePlan}
+            isGenerating={isGenerating}
+            generationStage={generationStage}
+            showReset={false}
+          />
+        ) : null}
+      </main>
 
-      <MealInputSection
-        panelId="meal-input-panel"
-        selectedChild={selectedChild}
-        draft={mealDraft}
-        allergyWarnings={allergyWarnings}
-        onChange={handleChangeMealDraft}
-        onClear={handleClearMealDraft}
-        onGenerate={handleGeneratePlan}
-        isGenerating={isGenerating}
-        loadingLabel={generationLabel ?? undefined}
-        progressValue={generationProgressValue}
-      />
-    </AppFrame>
+      <CommonBottomMenu />
+    </div>
   );
 }

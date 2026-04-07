@@ -9,7 +9,7 @@ import {
   isValidAgeMonthsInput,
   isValidChildName
 } from "../lib/profile-date-utils";
-import { getProfileBackgroundColor } from "../lib/profile-tone";
+import { ChildSelectionCard } from "./child-selection-card";
 
 interface ChildProfilesSectionProps {
   profiles: ChildProfile[];
@@ -131,58 +131,14 @@ export function ChildProfilesSection({
           </div>
         ) : (
           profiles.map((profile) => (
-            <article
+            <ChildSelectionCard
               key={profile.id}
-              className={`profile-selection-card ${profile.id === selectedChildId ? "selected" : ""}`}
-              style={{ backgroundColor: getProfileBackgroundColor(profile.id || profile.name) }}
-            >
-              <div className="profile-selection-card-head">
-                <div className="profile-selection-card-identity">
-                  <div className="profile-selection-card-avatar" aria-hidden="true">
-                    👶
-                  </div>
-                  <div>
-                    <h3>{profile.name}</h3>
-                    <p>{profile.ageMonths}개월</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="profile-selection-card-menu"
-                  onClick={() => onEdit(profile)}
-                  aria-label={`${profile.name} 프로필 수정`}
-                >
-                  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="profile-selection-tag-row">
-                {(profile.allergies.length > 0 ? profile.allergies : ["알레르기 없음"]).map((tag) => (
-                  <span key={`${profile.id}-${tag}`} className="profile-selection-tag">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-
-              <div className="profile-selection-actions">
-                <button
-                  type="button"
-                  className="profile-selection-button soft"
-                  onClick={() => onSelect(profile.id)}
-                >
-                  {profile.id === selectedChildId ? "선택됨" : "선택"}
-                </button>
-                <button
-                  type="button"
-                  className="profile-selection-button solid"
-                  onClick={() => onEdit(profile)}
-                >
-                  수정
-                </button>
-              </div>
-            </article>
+              child={profile}
+              selected={profile.id === selectedChildId}
+              onSelect={() => onSelect(profile.id)}
+              onEdit={() => onEdit(profile)}
+              onDelete={() => onDelete(profile.id)}
+            />
           ))
         )}
       </div>

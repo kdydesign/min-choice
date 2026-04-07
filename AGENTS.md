@@ -13,6 +13,7 @@
 - 제품 범위: [./docs/product-spec.md](./docs/product-spec.md)
 - UX 기준: [./docs/ux-spec.md](./docs/ux-spec.md)
 - 시스템 구조: [./docs/architecture.md](./docs/architecture.md)
+- Figma 구현 가이드: [./docs/figma-codex-implementation-guide.md](./docs/figma-codex-implementation-guide.md)
 - 운영 기준: [./docs/deployment/vercel-hosting.md](./docs/deployment/vercel-hosting.md)
 
 판단 원칙:
@@ -20,6 +21,7 @@
 - 제품 범위 판단은 `docs/product-spec.md`를 따른다.
 - UX 판단은 `docs/ux-spec.md`를 따른다.
 - 시스템 구조 판단은 `docs/architecture.md`를 따른다.
+- Figma 기반 UI 구현은 `docs/figma-codex-implementation-guide.md`를 따른다.
 - 구현 방법과 금지사항은 이 문서를 최우선으로 따른다.
 - 운영/배포 설정은 `docs/deployment/vercel-hosting.md`를 따른다.
 

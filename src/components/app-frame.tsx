@@ -1,6 +1,6 @@
 import type { PropsWithChildren, ReactNode } from "react";
-import { NavLink } from "react-router-dom";
 import { BrandLogo } from "./brand-logo";
+import { CommonBottomMenu } from "./common-bottom-menu";
 import { useAuth } from "../features/auth/hooks/use-auth";
 import { PwaStatusBanner } from "../features/pwa/components/pwa-status-banner";
 
@@ -56,23 +56,7 @@ export function AppFrame({
         {children}
       </main>
 
-      <nav className="bottom-nav" aria-label="주요 탐색">
-        <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
-          오늘 식단
-        </NavLink>
-        <NavLink
-          to="/history"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-        >
-          최근 식단
-        </NavLink>
-        <NavLink
-          to="/profile"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-        >
-          아이 프로필
-        </NavLink>
-      </nav>
+      <CommonBottomMenu />
     </div>
   );
 }
