@@ -19,7 +19,7 @@ export function LoginPage() {
           <img src={figmaLoginArt} alt="베베 초이스 로고" className="login-screen-image" />
         </div>
 
-        <p className="login-screen-copy">잘먹 있는 재료로 쉬워요! 식단을 손쉽게.</p>
+        <p className="login-screen-copy">있는 재료로 손쉽게, 아이 맞춤 식단을 만들어보세요.</p>
 
         <div className="login-screen-actions">
           <AuthActionButton

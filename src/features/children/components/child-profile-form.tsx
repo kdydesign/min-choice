@@ -131,8 +131,8 @@ export function ChildProfileForm({
   }, [initialProfile]);
 
   const fieldErrors = validateProfileForm(formState);
-  const isSubmitDisabled =
-    Boolean(fieldErrors.name || fieldErrors.ageMonths || fieldErrors.birthDate) || submitting;
+  const isFormValid = !fieldErrors.name && !fieldErrors.ageMonths && !fieldErrors.birthDate;
+  const isSubmitDisabled = !isFormValid || submitting;
 
   function resetToInitialState() {
     setFormState(initialProfile ? createFormStateFromProfile(initialProfile) : createEmptyFormState());

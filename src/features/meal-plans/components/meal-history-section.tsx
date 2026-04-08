@@ -1,5 +1,6 @@
 import { EmptyState } from "../../../components/empty-state";
 import type { ChildProfile, DailyMealPlan } from "../../../types/domain";
+import { MealHistoryEmptyView } from "./meal-history-empty-view";
 import { MealHistoryCard } from "./meal-history-card";
 
 interface MealHistorySectionProps {
@@ -7,16 +8,17 @@ interface MealHistorySectionProps {
   history: DailyMealPlan[];
   selectedPlanId: string;
   onLoad: (planId: string) => void;
-  onCreatePlan?: () => void;
 }
 
 export function MealHistorySection({
   selectedChild,
   history,
   selectedPlanId,
-  onLoad,
-  onCreatePlan
+  onLoad
 }: MealHistorySectionProps) {
+  const hasHistory = history.length > 0;
+  const isEmptyHistory = Boolean(selectedChild) && !hasHistory;
+
   if (!selectedChild) {
     return (
       <div className="history-figma-state-card">
@@ -28,22 +30,8 @@ export function MealHistorySection({
     );
   }
 
-  if (history.length === 0) {
-    return (
-      <div className="history-figma-state-card">
-        <EmptyState
-          title="아직 저장된 식단이 없어요"
-          description={`${selectedChild.name}의 최근 식단이 아직 없어요. 오늘 식단을 먼저 만들어 보세요.`}
-          action={
-            onCreatePlan ? (
-              <button type="button" className="primary small" onClick={onCreatePlan}>
-                오늘 식단 만들기
-              </button>
-            ) : null
-          }
-        />
-      </div>
-    );
+  if (isEmptyHistory) {
+    return <MealHistoryEmptyView />;
   }
 
   return (

@@ -136,26 +136,10 @@ export function ProfilePage() {
 
   return (
     <div className="profile-figma-page">
-      {isEmptyState ? (
-        <CommonHeader onBack={() => navigate("/")} />
-      ) : (
-        <section className="profile-selection-header">
-          <div className="profile-selection-header-bar">
-            <button
-              type="button"
-              className="profile-selection-header-side"
-              onClick={() => navigate("/")}
-              aria-label="오늘 식단으로 이동"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <h1>우리 아이 선택</h1>
-            <div className="profile-selection-header-placeholder" aria-hidden="true" />
-          </div>
-        </section>
-      )}
+      <CommonHeader
+        title={isEmptyState ? "베베 초이스" : "우리 아이 선택"}
+        onBack={() => navigate("/")}
+      />
 
       <main className={`profile-selection-layout ${isEmptyState ? "is-empty-state" : ""}`}>
         {pageError ? (

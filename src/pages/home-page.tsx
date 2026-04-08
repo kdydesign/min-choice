@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CommonBottomMenu } from "../components/common-bottom-menu";
 import { CommonHeader } from "../components/common-header";
 import { ErrorState } from "../components/error-state";
-import { LoadingState } from "../components/loading-state";
+import { SessionCheckingOverlay } from "../features/auth/components/session-checking-overlay";
 import { listChildProfiles } from "../features/children/api/child-profile-repository";
 import {
   clearMealDraft,
@@ -64,6 +64,11 @@ export function HomePage() {
   const [hasSeededInitialDraft, setHasSeededInitialDraft] = useState(false);
   const [todayView, setTodayView] = useState<"input" | "result">("input");
   const [generationStage, setGenerationStage] = useState<MealGenerationStage | null>(null);
+  const [resultPlan, setResultPlan] = useState<DailyMealPlan | null>(null);
+  const [resultSourceMealInputs, setResultSourceMealInputs] = useState<Record<MealType, string[]> | null>(null);
+  const [resultSaveError, setResultSaveError] = useState<string | null>(null);
+  const [resultSaveSuccess, setResultSaveSuccess] = useState<string | null>(null);
+  const [isResultSaved, setIsResultSaved] = useState(false);
 
   const {
     data: profiles = [],
@@ -134,17 +139,11 @@ export function HomePage() {
   }, [hasSeededInitialDraft, history, selectedChild]);
 
   const savePlanMutation = useMutation({
-    mutationFn: saveMealPlan,
-    onSuccess: async (plan) => {
-      await queryClient.invalidateQueries({ queryKey: ["meal-plans", plan.childId] });
-      setSelectedPlan(plan.id);
-      setActionError(null);
-    }
+    mutationFn: saveMealPlan
   });
 
   const latestPlan = history[0] ?? null;
   const hasPendingChanges = useMemo(() => !areMealInputsEqual(mealDraft, latestPlan), [latestPlan, mealDraft]);
-  const visiblePlan = hasPendingChanges ? null : latestPlan;
   const isGenerating = generationStage !== null;
 
   const allergyWarnings = useMemo<Record<MealType, string[]>>(
@@ -183,22 +182,22 @@ export function HomePage() {
         }
       });
 
-      setGenerationStage("saving");
+      const sourceMealInputs = {
+        breakfast: mealDraft.breakfast,
+        lunch: mealDraft.lunch,
+        dinner: mealDraft.dinner
+      } satisfies Record<MealType, string[]>;
 
       const nextPlanPayload: SaveMealPlanInput = {
         plan,
-        sourceMealInputs: {
-          breakfast: mealDraft.breakfast,
-          lunch: mealDraft.lunch,
-          dinner: mealDraft.dinner
-        }
+        sourceMealInputs
       };
 
-      const savedPlan = await savePlanMutation.mutateAsync(nextPlanPayload);
-      saveMealDraft(selectedChild.id, normalizedDraft);
-      setMealDraft(normalizedDraft);
-      setHasSeededInitialDraft(true);
-      setSelectedPlan(savedPlan.id);
+      setResultPlan(nextPlanPayload.plan);
+      setResultSourceMealInputs(sourceMealInputs);
+      setResultSaveError(null);
+      setResultSaveSuccess(null);
+      setIsResultSaved(false);
       setTodayView("result");
     } catch (error) {
       setActionError(getErrorMessage(error, "식단을 생성하지 못했어요."));
@@ -222,6 +221,9 @@ export function HomePage() {
     saveMealDraft(selectedChild.id, nextDraft);
     setHasSeededInitialDraft(true);
     setActionError(null);
+    setResultSaveError(null);
+    setResultSaveSuccess(null);
+    setIsResultSaved(false);
   }
 
   function handleClearMealDraft() {
@@ -233,6 +235,52 @@ export function HomePage() {
     setMealDraft(emptyMealDraft());
     setHasSeededInitialDraft(true);
     setActionError(null);
+    setResultSaveError(null);
+    setResultSaveSuccess(null);
+    setIsResultSaved(false);
+  }
+
+  async function handleSavePlan() {
+    if (!selectedChild || !resultPlan || savePlanMutation.isPending || isResultSaved) {
+      return;
+    }
+
+    try {
+      setResultSaveError(null);
+      const savedPlan = await savePlanMutation.mutateAsync({
+        plan: resultPlan,
+        sourceMealInputs: resultSourceMealInputs ?? mealDraft
+      });
+
+      queryClient.setQueryData<DailyMealPlan[]>(
+        ["meal-plans", selectedChild.id],
+        (current = []) =>
+          [savedPlan, ...current.filter((plan) => plan.id !== savedPlan.id)].sort(
+            (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+          )
+      );
+
+      await queryClient.invalidateQueries({ queryKey: ["meal-plans", selectedChild.id] });
+
+      const normalizedDraft = {
+        breakfast: savedPlan.mealInputs.breakfast,
+        lunch: savedPlan.mealInputs.lunch,
+        dinner: savedPlan.mealInputs.dinner,
+        updatedAt: savedPlan.createdAt
+      } satisfies MealDraft;
+
+      saveMealDraft(selectedChild.id, normalizedDraft);
+      setMealDraft(normalizedDraft);
+      setHasSeededInitialDraft(true);
+      setSelectedPlan(savedPlan.id);
+      setResultPlan(savedPlan);
+      setResultSaveSuccess("오늘 식단을 저장했어요.");
+      setIsResultSaved(true);
+      setActionError(null);
+    } catch (error) {
+      setResultSaveError(getErrorMessage(error, "식단을 저장하지 못했어요."));
+      setResultSaveSuccess(null);
+    }
   }
 
   const pageError =
@@ -244,14 +292,23 @@ export function HomePage() {
   useEffect(() => {
     if (!selectedChild) {
       setTodayView("input");
+      setResultPlan(null);
+      setResultSourceMealInputs(null);
+      setResultSaveError(null);
+      setResultSaveSuccess(null);
+      setIsResultSaved(false);
     }
   }, [selectedChild]);
 
   useEffect(() => {
+    if (todayView === "result" && resultPlan) {
+      return;
+    }
+
     if (hasPendingChanges) {
       setTodayView("input");
     }
-  }, [hasPendingChanges]);
+  }, [hasPendingChanges, resultPlan, todayView]);
 
   if (todayView === "result") {
     return (
@@ -276,8 +333,8 @@ export function HomePage() {
         ) : null}
 
         {isPageLoading && !pageError ? (
-          <LoadingState
-            title="오늘 식단 화면을 준비하고 있어요"
+          <SessionCheckingOverlay
+            title="오늘 식단 화면 준비 중..."
             description="선택한 아이 정보와 최근 식단을 불러오는 중이에요."
           />
         ) : null}
@@ -285,17 +342,26 @@ export function HomePage() {
         {!pageError && !isPageLoading ? (
           <TodayMealResultScreen
             childName={selectedChild?.name ?? ""}
-            plan={visiblePlan}
+            plan={resultPlan}
             isGenerating={isGenerating}
             generationStage={generationStage}
+            isSaving={savePlanMutation.isPending}
+            isSaved={isResultSaved}
+            saveError={resultSaveError}
+            saveSuccess={resultSaveSuccess}
             onBack={() => {
               if (isGenerating) {
                 return;
               }
 
+              setResultPlan(null);
+              setResultSourceMealInputs(null);
+              setResultSaveError(null);
+              setResultSaveSuccess(null);
+              setIsResultSaved(false);
               setTodayView("input");
             }}
-            onRegenerate={selectedChild ? handleGeneratePlan : undefined}
+            onSave={selectedChild ? handleSavePlan : undefined}
           />
         ) : null}
 
@@ -367,8 +433,8 @@ export function HomePage() {
         ) : null}
 
         {isPageLoading && !pageError ? (
-          <LoadingState
-            title="오늘 식단 화면을 준비하고 있어요"
+          <SessionCheckingOverlay
+            title="오늘 식단 화면 준비 중..."
             description="선택한 아이 정보와 최근 식단을 불러오는 중이에요."
           />
         ) : null}

@@ -86,6 +86,7 @@ export function AppRouter() {
         <Route path="/" element={<ProtectedHomeRoute />}>
           <Route index element={<HomePage />} />
           <Route path="history" element={<HistoryPage />} />
+          <Route path="history/:mealPlanId" element={<HistoryPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

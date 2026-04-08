@@ -227,6 +227,46 @@ export async function listMealPlansByChild(childId: string) {
   return sortPlans((data ?? []).map((row) => mapMealPlanRow(row as MealPlanRow, childRecord.name)));
 }
 
+export async function getMealPlanById(mealPlanId: string) {
+  if (!isUuid(mealPlanId)) {
+    return null;
+  }
+
+  const { supabase, userId } = await requireMealPlanContext();
+  const { data, error } = await supabase
+    .from("meal_plans")
+    .select(
+      "id, child_id, created_at, notices_json, meal_plan_items(meal_type, result_payload_json), meal_inputs(meal_type, original_ingredients_json, normalized_ingredients_json)"
+    )
+    .eq("id", mealPlanId)
+    .single<MealPlanRow>();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      return null;
+    }
+
+    throw error;
+  }
+
+  const { data: childRecord, error: childError } = await supabase
+    .from("children")
+    .select("name")
+    .eq("id", data.child_id)
+    .eq("owner_user_id", userId)
+    .single<{ name: string }>();
+
+  if (childError) {
+    if (childError.code === "PGRST116") {
+      return null;
+    }
+
+    throw childError;
+  }
+
+  return mapMealPlanRow(data as MealPlanRow, childRecord.name);
+}
+
 export async function saveMealPlan(input: SaveMealPlanInput) {
   if (!isUuid(input.plan.childId)) {
     throw new Error("식단을 저장할 아이 프로필 ID가 올바르지 않아요.");

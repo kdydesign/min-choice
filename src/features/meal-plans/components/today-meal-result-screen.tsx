@@ -2,49 +2,44 @@ import { useEffect, useState } from "react";
 import { CommonHeader } from "../../../components/common-header";
 import type { DailyMealPlan, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
-import { MEAL_LABELS } from "../../menus/data/menu-catalog";
 import { MealGenerationProgress, type MealGenerationStage } from "./meal-generation-progress";
-
-const MEAL_META: Record<MealType, { icon: string; color: string }> = {
-  breakfast: {
-    icon: "☀️",
-    color: "#4A90E2"
-  },
-  lunch: {
-    icon: "🌤️",
-    color: "#6BC47D"
-  },
-  dinner: {
-    icon: "🌙",
-    color: "#FF8A7A"
-  }
-};
+import { MealResultCard } from "./meal-result-card";
 
 interface TodayMealResultScreenProps {
   childName: string;
   plan: DailyMealPlan | null;
+  title?: string;
+  subtitle?: string;
+  secondaryActionLabel?: string | null;
   isGenerating?: boolean;
   generationStage?: MealGenerationStage | null;
+  isSaving?: boolean;
+  isSaved?: boolean;
+  saveError?: string | null;
+  saveSuccess?: string | null;
   onBack: () => void;
-  onRegenerate?: () => void;
-}
-
-function getFallbackRecipeSummary(recipe: string[]) {
-  return recipe.length > 0 ? recipe : ["식단 추천을 다시 생성해 주세요."];
+  onSave?: () => void;
 }
 
 export function TodayMealResultScreen({
   childName,
   plan,
+  title = "오늘의 추천 식단",
+  subtitle,
+  secondaryActionLabel = "재료 다시 입력",
   isGenerating = false,
   generationStage = null,
+  isSaving = false,
+  isSaved = false,
+  saveError = null,
+  saveSuccess = null,
   onBack,
-  onRegenerate
+  onSave
 }: TodayMealResultScreenProps) {
-  const [expandedMealType, setExpandedMealType] = useState<MealType | null>("breakfast");
+  const [expandedMealType, setExpandedMealType] = useState<MealType | null>(null);
 
   useEffect(() => {
-    setExpandedMealType("breakfast");
+    setExpandedMealType(null);
   }, [plan?.id]);
 
   if (!plan) {
@@ -63,13 +58,16 @@ export function TodayMealResultScreen({
   }
 
   return (
-    <div className={`meal-result-screen ${isGenerating ? "is-busy" : ""}`} aria-busy={isGenerating}>
+    <div
+      className={`meal-result-screen ${isGenerating || isSaving ? "is-busy" : ""}`}
+      aria-busy={isGenerating || isSaving}
+    >
       <CommonHeader title="베베 초이스" onBack={isGenerating ? undefined : onBack} />
 
       <div className="meal-result-content">
         <section className="meal-result-title">
-          <h1>오늘의 추천 식단</h1>
-          <p>{childName}를 위한 맞춤 식단입니다</p>
+          <h1>{title}</h1>
+          <p>{subtitle ?? `${childName}를 위한 맞춤 식단입니다`}</p>
         </section>
 
         {isGenerating && generationStage ? (
@@ -85,123 +83,16 @@ export function TodayMealResultScreen({
           const isExpanded = expandedMealType === mealType;
 
           return (
-            <article key={mealType} className={`meal-result-card meal-result-card-${mealType}`}>
-              <div className="meal-result-card-head">
-                <span className="meal-result-card-emoji" aria-hidden="true">
-                  {MEAL_META[mealType].icon}
-                </span>
-                <h2>{MEAL_LABELS[mealType]}</h2>
-              </div>
-
-              <div className="meal-result-card-body">
-                <h3 style={{ color: MEAL_META[mealType].color }}>{meal.name}</h3>
-                <p className="meal-result-description">{meal.description}</p>
-
-                <div className="meal-result-chip-row">
-                  {meal.inputIngredients.map((ingredient) => (
-                    <span
-                      key={`${mealType}-${ingredient}`}
-                      className="meal-result-ingredient-chip"
-                      style={{ backgroundColor: `${MEAL_META[mealType].color}22` }}
-                    >
-                      {ingredient}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="meal-result-stats">
-                  <span>🍼 12개월 기준</span>
-                  <span>🍽️ {meal.usedIngredients.length}개 사용</span>
-                  <span>⏰ 3줄 조리법</span>
-                </div>
-
-                <button
-                  type="button"
-                  className="meal-result-toggle"
-                  onClick={() =>
-                    setExpandedMealType((current) => (current === mealType ? null : mealType))
-                  }
-                  disabled={isGenerating}
-                >
-                  <span>{isExpanded ? "접기" : "상세보기"}</span>
-                  <svg
-                    className={isExpanded ? "rotated" : undefined}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {isExpanded ? (
-                  <div className="meal-result-detail-stack">
-                    <div className="meal-result-detail-card">
-                      <h4>사용 가능한 재료</h4>
-                      <div className="meal-result-chip-row">
-                        {meal.usedIngredients.length > 0 ? (
-                          meal.usedIngredients.map((ingredient) => (
-                            <span key={`${mealType}-used-${ingredient}`} className="meal-result-detail-chip">
-                              {ingredient}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="meal-result-detail-text">입력 재료가 없어요.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {meal.missingIngredients.length > 0 ? (
-                      <div className="meal-result-detail-card">
-                        <h4>부족한 재료</h4>
-                        <div className="meal-result-chip-row">
-                          {meal.missingIngredients.map((ingredient) => (
-                            <span key={`${mealType}-missing-${ingredient}`} className="meal-result-detail-chip">
-                              {ingredient}
-                            </span>
-                          ))}
-                        </div>
-                        <p className="meal-result-detail-text">{meal.missingIngredientExplanation}</p>
-                      </div>
-                    ) : null}
-
-                    <div className="meal-result-detail-card">
-                      <h4>대체 가능한 재료</h4>
-                      <div className="meal-result-detail-list">
-                        {Object.entries(meal.substitutes).length > 0 ? (
-                          Object.entries(meal.substitutes).map(([ingredient, substitutes]) => (
-                            <div key={`${mealType}-${ingredient}`} className="meal-result-substitute-row">
-                              <span className="meal-result-detail-chip">{ingredient}</span>
-                              <span className="meal-result-arrow">→</span>
-                              <span className="meal-result-detail-text">
-                                {substitutes.join(", ") || "없음"}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="meal-result-detail-text">대체 재료가 필요 없어요.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="meal-result-detail-card">
-                      <h4>주의사항</h4>
-                      <p className="meal-result-detail-text">{meal.caution}</p>
-                    </div>
-
-                    <div className="meal-result-detail-card">
-                      <h4>조리법 3줄</h4>
-                      <ol className="meal-result-recipe-list">
-                        {getFallbackRecipeSummary(meal.recipeSummary).map((step) => (
-                          <li key={`${mealType}-${step}`}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </article>
+            <MealResultCard
+              key={mealType}
+              mealType={mealType}
+              meal={meal}
+              expanded={isExpanded}
+              disabled={isGenerating || isSaving}
+              onToggle={() =>
+                setExpandedMealType((current) => (current === mealType ? null : mealType))
+              }
+            />
           );
         })}
 
@@ -218,26 +109,44 @@ export function TodayMealResultScreen({
           </ul>
         </section>
 
-        <div className="meal-result-actions">
-          <button
-            type="button"
-            className="meal-result-secondary-button"
-            onClick={onBack}
-            disabled={isGenerating}
-          >
-            재료 다시 입력
-          </button>
-          {onRegenerate ? (
-            <button
-              type="button"
-              className="meal-result-primary-button"
-              onClick={onRegenerate}
-              disabled={isGenerating}
-            >
-              {isGenerating ? "식단 다시 생성 중" : "식단 다시 생성"}
-            </button>
-          ) : null}
-        </div>
+        {secondaryActionLabel || onSave ? (
+          <div className="meal-result-actions">
+            {secondaryActionLabel ? (
+              <button
+                type="button"
+                className="meal-result-secondary-button"
+                onClick={onBack}
+                disabled={isGenerating || isSaving}
+              >
+                {secondaryActionLabel}
+              </button>
+            ) : null}
+            {onSave ? (
+              <button
+                type="button"
+                className={`meal-result-primary-button ${
+                  isSaved ? "is-saved" : isSaving ? "is-saving" : ""
+                }`}
+                onClick={onSave}
+                disabled={isGenerating || isSaving || isSaved}
+              >
+                {isSaving ? <span className="meal-result-button-spinner" aria-hidden="true" /> : null}
+                {isSaved ? "식단 저장 완료" : isSaving ? "식단 저장 중..." : "식단 저장하기"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {saveError ? (
+          <div className="notice danger meal-result-notice" role="status" aria-live="polite">
+            {saveError}
+          </div>
+        ) : null}
+        {!saveError && saveSuccess ? (
+          <div className="notice success meal-result-notice" role="status" aria-live="polite">
+            {saveSuccess}
+          </div>
+        ) : null}
       </div>
     </div>
   );
