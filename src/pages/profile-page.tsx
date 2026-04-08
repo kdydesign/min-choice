@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { CommonBottomMenu } from "../components/common-bottom-menu";
+import { CommonHeader } from "../components/common-header";
 import { ErrorState } from "../components/error-state";
 import { LoadingState } from "../components/loading-state";
 import { ChildProfilesSection } from "../features/children/components/child-profiles-section";
+import { FirstChildRegistrationView } from "../features/children/components/first-child-registration-view";
 import { useAuth } from "../features/auth/hooks/use-auth";
 import {
   deleteChildProfile,
@@ -57,16 +59,15 @@ export function ProfilePage() {
   const profileMutation = useMutation({
     mutationFn: saveChildProfile,
     onSuccess: async (profile) => {
-      const isFirstProfile = profiles.length === 0;
+      queryClient.setQueryData<ChildProfile[]>(["children"], (current = []) => {
+        const remaining = current.filter((item) => item.id !== profile.id);
+        return [...remaining, profile].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+      });
       await queryClient.invalidateQueries({ queryKey: ["children"] });
       setSelectedChild(profile.id);
       setEditingProfile(null);
       setActionError(null);
-      setActionSuccess(isFirstProfile ? null : "아이 프로필을 저장했어요.");
-
-      if (isFirstProfile) {
-        navigate("/", { replace: true });
-      }
+      setActionSuccess(profiles.length === 0 ? "첫 아이 프로필을 저장했어요." : "아이 프로필을 저장했어요.");
     }
   });
 
@@ -78,8 +79,12 @@ export function ProfilePage() {
       return profileId;
     },
     onSuccess: async (profileId) => {
+      queryClient.setQueryData<ChildProfile[]>(["children"], (current = []) =>
+        current.filter((profile) => profile.id !== profileId)
+      );
       await queryClient.invalidateQueries({ queryKey: ["children"] });
       await queryClient.invalidateQueries({ queryKey: ["meal-plans"] });
+      setEditingProfile(null);
       setActionError(null);
       setActionSuccess("아이 프로필을 삭제했어요.");
 
@@ -111,6 +116,7 @@ export function ProfilePage() {
     } catch (error) {
       setActionSuccess(null);
       setActionError(getErrorMessage(error, "아이 프로필을 저장하지 못했어요."));
+      throw error;
     }
   }
 
@@ -126,10 +132,13 @@ export function ProfilePage() {
   const pageError =
     actionError ??
     (profilesError ? getErrorMessage(profilesError, "아이 프로필을 불러오지 못했어요.") : null);
+  const isEmptyState = !isProfilesLoading && profiles.length === 0;
 
   return (
     <div className="profile-figma-page">
-      <main className="profile-selection-layout">
+      {isEmptyState ? (
+        <CommonHeader onBack={() => navigate("/")} />
+      ) : (
         <section className="profile-selection-header">
           <div className="profile-selection-header-bar">
             <button
@@ -146,7 +155,9 @@ export function ProfilePage() {
             <div className="profile-selection-header-placeholder" aria-hidden="true" />
           </div>
         </section>
+      )}
 
+      <main className={`profile-selection-layout ${isEmptyState ? "is-empty-state" : ""}`}>
         {pageError ? (
           <ErrorState
             title="아이 프로필 화면을 준비하지 못했어요"
@@ -171,49 +182,60 @@ export function ProfilePage() {
           />
         ) : null}
 
-        <ChildProfilesSection
-          profiles={profiles}
-          selectedChildId={selectedChildId}
-          onSelect={(childId) => {
-            setSelectedChild(childId);
-            setSelectedPlan("");
-            setEditingProfile(null);
-          }}
-          onSave={handleSaveProfile}
-          onEdit={setEditingProfile}
-          onDelete={(childId) => void handleDeleteProfile(childId)}
-          editingProfile={editingProfile}
-          onCancelEdit={() => setEditingProfile(null)}
-        />
+        {!isProfilesLoading ? (
+          isEmptyState ? (
+            <FirstChildRegistrationView
+              submitting={profileMutation.isPending}
+              onSave={handleSaveProfile}
+            />
+          ) : (
+            <>
+              <ChildProfilesSection
+                profiles={profiles}
+                selectedChildId={selectedChildId}
+                onSelect={(childId) => {
+                  setSelectedChild(childId);
+                  setSelectedPlan("");
+                  setEditingProfile(null);
+                }}
+                onSave={handleSaveProfile}
+                onEdit={setEditingProfile}
+                onDelete={(childId) => void handleDeleteProfile(childId)}
+                editingProfile={editingProfile}
+                onCancelEdit={() => setEditingProfile(null)}
+              />
 
-        <div className="profile-page-actions">
-          <button type="button" className="profile-selection-logout-button" onClick={() => void signOut()}>
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M15 16.5L19.5 12L15 7.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M19.5 12H10.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M13 20H7.5C6.67157 20 6 19.3284 6 18.5V5.5C6 4.67157 6.67157 4 7.5 4H13"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>{isAnonymous ? "시작 화면으로" : "로그아웃"}</span>
-          </button>
-        </div>
+              <div className="profile-page-actions">
+                <button type="button" className="profile-selection-logout-button" onClick={() => void signOut()}>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M15 16.5L19.5 12L15 7.5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M19.5 12H10.5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M13 20H7.5C6.67157 20 6 19.3284 6 18.5V5.5C6 4.67157 6.67157 4 7.5 4H13"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>{isAnonymous ? "시작 화면으로" : "로그아웃"}</span>
+                </button>
+              </div>
+            </>
+          )
+        ) : null}
       </main>
 
       <CommonBottomMenu />

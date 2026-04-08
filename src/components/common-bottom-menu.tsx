@@ -1,4 +1,7 @@
-import { NavLink } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { ChildSelectionRequiredDialog } from "../features/children/components/child-selection-required-dialog";
+import { useAppStore } from "../store/use-app-store";
 
 function HomeIcon() {
   return (
@@ -50,36 +53,95 @@ function UserIcon() {
 }
 
 export function CommonBottomMenu() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const selectedChildId = useAppStore((state) => state.selectedChildId);
+  const [isSelectionDialogOpen, setSelectionDialogOpen] = useState(false);
+  const blockedTabRef = useRef<HTMLAnchorElement | null>(null);
+
+  const guardedTabs = useMemo(() => new Set(["/", "/history"]), []);
+
+  useEffect(() => {
+    if (isSelectionDialogOpen && selectedChildId) {
+      setSelectionDialogOpen(false);
+    }
+  }, [isSelectionDialogOpen, selectedChildId]);
+
+  function handleTabPress(event: MouseEvent<HTMLAnchorElement>, nextPath: string) {
+    if (nextPath === location.pathname) {
+      return;
+    }
+
+    if (!guardedTabs.has(nextPath)) {
+      return;
+    }
+
+    if (selectedChildId) {
+      return;
+    }
+
+    event.preventDefault();
+    blockedTabRef.current = event.currentTarget;
+    setSelectionDialogOpen(true);
+  }
+
+  function handleCloseDialog() {
+    setSelectionDialogOpen(false);
+    window.requestAnimationFrame(() => {
+      blockedTabRef.current?.focus();
+    });
+  }
+
+  function handleMoveToProfile() {
+    setSelectionDialogOpen(false);
+    blockedTabRef.current = null;
+    navigate("/profile");
+  }
+
   return (
-    <nav className="common-bottom-menu" aria-label="주요 탐색">
-      <div className="common-bottom-menu-inner">
-        <NavLink to="/" end className={({ isActive }) => `common-bottom-menu-item ${isActive ? "active" : ""}`}>
-          <span className="common-bottom-menu-icon">
-            <HomeIcon />
-          </span>
-          <span className="common-bottom-menu-label">오늘 식단</span>
-        </NavLink>
+    <>
+      <nav className="common-bottom-menu" aria-label="주요 탐색">
+        <div className="common-bottom-menu-inner">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) => `common-bottom-menu-item ${isActive ? "active" : ""}`}
+            onClick={(event) => handleTabPress(event, "/")}
+          >
+            <span className="common-bottom-menu-icon">
+              <HomeIcon />
+            </span>
+            <span className="common-bottom-menu-label">오늘 식단</span>
+          </NavLink>
 
-        <NavLink
-          to="/history"
-          className={({ isActive }) => `common-bottom-menu-item ${isActive ? "active" : ""}`}
-        >
-          <span className="common-bottom-menu-icon">
-            <CalendarIcon />
-          </span>
-          <span className="common-bottom-menu-label">최근 식단</span>
-        </NavLink>
+          <NavLink
+            to="/history"
+            className={({ isActive }) => `common-bottom-menu-item ${isActive ? "active" : ""}`}
+            onClick={(event) => handleTabPress(event, "/history")}
+          >
+            <span className="common-bottom-menu-icon">
+              <CalendarIcon />
+            </span>
+            <span className="common-bottom-menu-label">최근 식단</span>
+          </NavLink>
 
-        <NavLink
-          to="/profile"
-          className={({ isActive }) => `common-bottom-menu-item ${isActive ? "active" : ""}`}
-        >
-          <span className="common-bottom-menu-icon">
-            <UserIcon />
-          </span>
-          <span className="common-bottom-menu-label">아이 프로필</span>
-        </NavLink>
-      </div>
-    </nav>
+          <NavLink
+            to="/profile"
+            className={({ isActive }) => `common-bottom-menu-item ${isActive ? "active" : ""}`}
+          >
+            <span className="common-bottom-menu-icon">
+              <UserIcon />
+            </span>
+            <span className="common-bottom-menu-label">아이 프로필</span>
+          </NavLink>
+        </div>
+      </nav>
+
+      <ChildSelectionRequiredDialog
+        open={isSelectionDialogOpen}
+        onClose={handleCloseDialog}
+        onConfirm={handleMoveToProfile}
+      />
+    </>
   );
 }
