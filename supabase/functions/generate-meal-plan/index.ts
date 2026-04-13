@@ -6,6 +6,7 @@ import {
   normalizeIngredient,
   uniqueIngredients
 } from "../../../src/features/ingredients/lib/ingredient-utils.ts";
+import { deriveAgeMonthsFromBirthDate } from "../../../src/features/children/lib/profile-date-utils.ts";
 import { guardGeneratedMealContent } from "../../../src/features/meal-plans/lib/ai-response-guard.ts";
 import { buildDailyMealPlanWithCandidates } from "../../../src/features/meal-plans/lib/plan-generator.ts";
 import {
@@ -38,6 +39,9 @@ interface AiMealResponse {
   substitutes: AiSubstituteItem[];
   recipe: string[];
   caution: string;
+  calories: number;
+  protein: number;
+  cookTimeMinutes: number;
 }
 
 interface NormalizedAiMealResponse extends Omit<AiMealResponse, "substitutes"> {
@@ -89,7 +93,10 @@ const AI_RESPONSE_SCHEMA = {
       maxItems: 3,
       items: { type: "string" }
     },
-    caution: { type: "string" }
+    caution: { type: "string" },
+    calories: { type: "number" },
+    protein: { type: "number" },
+    cookTimeMinutes: { type: "number" }
   },
   required: [
     "selectedMenu",
@@ -98,7 +105,10 @@ const AI_RESPONSE_SCHEMA = {
     "missingIngredientExplanation",
     "substitutes",
     "recipe",
-    "caution"
+    "caution",
+    "calories",
+    "protein",
+    "cookTimeMinutes"
   ]
 } as const;
 
@@ -145,7 +155,7 @@ function parseStringArrayField(value: unknown, fieldName: string) {
   return nextValues;
 }
 
-function parseAgeMonths(value: unknown) {
+function parseAgeMonths(value: unknown, birthDate?: string) {
   const parsedValue =
     typeof value === "number"
       ? value
@@ -153,11 +163,17 @@ function parseAgeMonths(value: unknown) {
         ? Number(value)
         : Number.NaN;
 
-  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
-    throw new RequestValidationError("child.ageMonths must be a non-negative number");
+  if (Number.isFinite(parsedValue) && parsedValue >= 0) {
+    return parsedValue;
   }
 
-  return parsedValue;
+  const derivedAgeMonths = birthDate ? deriveAgeMonthsFromBirthDate(birthDate) : null;
+
+  if (derivedAgeMonths === null) {
+    throw new RequestValidationError("child.ageMonths or child.birthDate must be valid");
+  }
+
+  return derivedAgeMonths;
 }
 
 function parseGenerateMealPlanRequest(value: unknown): GenerateMealPlanRequest {
@@ -174,13 +190,14 @@ function parseGenerateMealPlanRequest(value: unknown): GenerateMealPlanRequest {
   }
 
   const now = new Date().toISOString();
+  const birthDate = parseOptionalString(value.child.birthDate);
 
   return {
     child: {
       id: parseRequiredString(value.child.id, "child.id"),
       name: parseRequiredString(value.child.name, "child.name"),
-      ageMonths: parseAgeMonths(value.child.ageMonths),
-      birthDate: parseOptionalString(value.child.birthDate),
+      ageMonths: parseAgeMonths(value.child.ageMonths, birthDate),
+      birthDate,
       allergies: parseStringArrayField(value.child.allergies ?? [], "child.allergies"),
       createdAt: parseOptionalString(value.child.createdAt, now),
       updatedAt: parseOptionalString(value.child.updatedAt, now)
@@ -246,7 +263,10 @@ function isAiMealResponse(value: unknown): value is AiMealResponse {
     typeof value.missingIngredientExplanation === "string" &&
     isAiSubstituteItems(value.substitutes) &&
     isStringArray(value.recipe) &&
-    typeof value.caution === "string"
+    typeof value.caution === "string" &&
+    typeof value.calories === "number" &&
+    typeof value.protein === "number" &&
+    typeof value.cookTimeMinutes === "number"
   );
 }
 
@@ -274,8 +294,37 @@ function normalizeAiMealResponse(response: AiMealResponse): NormalizedAiMealResp
     missingIngredientExplanation: response.missingIngredientExplanation.trim(),
     substitutes: normalizeSubstituteItems(response.substitutes),
     recipe: response.recipe.map((step) => step.trim()).filter(Boolean).slice(0, 3),
-    caution: response.caution.trim()
+    caution: response.caution.trim(),
+    calories: response.calories,
+    protein: response.protein,
+    cookTimeMinutes: response.cookTimeMinutes
   };
+}
+
+const DANGEROUS_PHRASES = [
+  "통째로",
+  "크게 썰",
+  "큰 덩어리",
+  "질식",
+  "매운",
+  "매콤",
+  "고추",
+  "후추",
+  "짠맛",
+  "자극적인",
+  "꿀",
+  "술",
+  "약처럼",
+  "치료",
+  "완치"
+] as const;
+
+function containsAllergyText(text: string, allergies: string[]) {
+  return uniqueIngredients(allergies).some((allergy) => text.includes(allergy));
+}
+
+function containsDangerousText(text: string) {
+  return DANGEROUS_PHRASES.some((phrase) => text.includes(phrase));
 }
 
 function hasSameNormalizedSet(left: string[], right: string[]) {
@@ -297,7 +346,8 @@ function buildAllowedValueMap(items: string[]) {
 function validateAiStructuredFields(
   response: NormalizedAiMealResponse,
   selectedResult: MealRecommendation,
-  candidates: MealRecommendation[]
+  candidates: MealRecommendation[],
+  allergies: string[]
 ) {
   const candidateNameSet = new Set(candidates.map((candidate) => candidate.name));
 
@@ -310,6 +360,39 @@ function validateAiStructuredFields(
   }
 
   if (!hasSameNormalizedSet(Object.keys(response.substitutes), Object.keys(selectedResult.substitutes))) {
+    return false;
+  }
+
+  if (
+    !Number.isFinite(response.calories) ||
+    !Number.isFinite(response.protein) ||
+    !Number.isFinite(response.cookTimeMinutes)
+  ) {
+    return false;
+  }
+
+  if (
+    Math.round(response.calories) !== Math.round(selectedResult.calories) ||
+    Math.round(response.protein) !== Math.round(selectedResult.protein) ||
+    Math.round(response.cookTimeMinutes) !== Math.round(selectedResult.cookTimeMinutes)
+  ) {
+    return false;
+  }
+
+  const narrativeFields = [
+    response.selectedMenu,
+    response.recommendation,
+    response.missingIngredientExplanation,
+    response.caution,
+    ...response.recipe,
+    ...Object.keys(response.substitutes),
+    ...Object.values(response.substitutes).flat()
+  ];
+
+  if (
+    narrativeFields.some((field) => containsAllergyText(field, allergies)) ||
+    narrativeFields.some((field) => containsDangerousText(field))
+  ) {
     return false;
   }
 
@@ -398,11 +481,15 @@ function buildAiRequestPayload(input: {
     promptVersion: AI_PROMPT_VERSION,
     child: {
       ageMonths: input.child.ageMonths,
+      birthDate: input.child.birthDate,
       allergies: uniqueIngredients(input.child.allergies)
     },
     mealType: input.mealType,
     normalizedInputIngredients: input.normalizedInputIngredients,
     selectedMenu: input.selectedResult.name,
+    expectedCalories: input.selectedResult.calories,
+    expectedProtein: input.selectedResult.protein,
+    expectedCookTimeMinutes: input.selectedResult.cookTimeMinutes,
     expectedMissingIngredients: input.selectedResult.missingIngredients,
     expectedSubstitutes: mapSubstitutesToItems(input.selectedResult.substitutes),
     candidates: input.candidates.slice(0, MAX_CANDIDATES).map((candidate) => ({
@@ -420,14 +507,16 @@ function buildAiRequestPayload(input: {
 
 function buildSystemPrompt() {
   return [
-    "당신은 12개월 전후 아이 식단 앱의 서버사이드 요약 생성기입니다.",
+    "당신은 아이 맞춤 식단 앱의 서버사이드 요약 생성기입니다.",
     "규칙 기반 추천 엔진이 이미 selectedMenu를 결정했으므로 다른 메뉴를 선택하면 안 됩니다.",
     "반드시 JSON만 반환하세요.",
+    "입력으로 받은 child.ageMonths를 기준으로 식감, 조리 난이도, 추천 수준을 판단하세요.",
     "selectedMenu는 입력으로 받은 selectedMenu와 정확히 동일해야 합니다.",
+    "calories, protein, cookTimeMinutes는 입력의 expectedCalories, expectedProtein, expectedCookTimeMinutes와 정확히 동일해야 합니다.",
     "missingIngredients는 입력의 expectedMissingIngredients와 동일하게 유지하세요.",
     "substitutes는 ingredient와 substitutes 배열을 가진 객체 목록이어야 합니다.",
     "substitutes의 ingredient와 substitutes 값은 expectedSubstitutes 범위 안에서만 작성하세요.",
-    "추천 문구와 조리법, 주의사항은 12개월 아이에게 안전하고 부드러운 식감 기준으로 작성하세요.",
+    "추천 문구와 조리법, 주의사항은 입력된 실제 개월수 기준으로 안전하고 부드러운 식감에 맞춰 작성하세요.",
     "알레르기 재료나 위험한 표현은 절대 포함하지 마세요.",
     "recipe는 보호자가 바로 따라 할 수 있는 짧은 3단계 배열이어야 합니다."
   ].join(" ");
@@ -539,7 +628,14 @@ async function enhanceMealResultWithAi(input: {
   try {
     const { parsed, responsePayload } = await requestOpenAiMealCopy(input.openAiConfig, requestPayload);
 
-    if (!validateAiStructuredFields(parsed, input.selectedResult, input.candidates)) {
+    if (
+      !validateAiStructuredFields(
+        parsed,
+        input.selectedResult,
+        input.candidates,
+        input.child.allergies
+      )
+    ) {
       return {
         result: input.selectedResult,
         validationStatus: "fallback-invalid-structured-fields",
@@ -559,6 +655,7 @@ async function enhanceMealResultWithAi(input: {
         isFallback: false
       },
       mealType: input.mealType,
+      ageMonths: input.child.ageMonths,
       menuName: input.selectedResult.name,
       cookingStyle: input.selectedResult.cookingStyle,
       usedIngredients: input.selectedResult.usedIngredients,
@@ -585,6 +682,9 @@ async function enhanceMealResultWithAi(input: {
         recipeSummary: guardedNarrative.recipeSummary,
         missingIngredientExplanation: guardedNarrative.missingIngredientExplanation,
         caution: guardedNarrative.caution,
+        calories: Math.round(parsed.calories),
+        protein: Math.round(parsed.protein),
+        cookTimeMinutes: Math.round(parsed.cookTimeMinutes),
         promptVersion: AI_PROMPT_VERSION,
         isFallback: false
       },

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AppIcon } from "../../../components/icons/app-icon";
 import type { ChildProfile } from "../../../types/domain";
 import { getProfileBackgroundColor } from "../lib/profile-tone";
 
@@ -43,7 +44,7 @@ export function ChildSelectionCard({
       <div className="profile-selection-card-head">
         <div className="profile-selection-card-identity">
           <div className="profile-selection-card-avatar" aria-hidden="true">
-            👶
+            <AppIcon name="childProfile" size={24} />
           </div>
           <div>
             <h3>{child.name}</h3>
@@ -74,7 +75,9 @@ export function ChildSelectionCard({
                   onDelete();
                 }}
               >
-                <span aria-hidden="true">🗑️</span>
+                <span className="profile-selection-card-delete-icon" aria-hidden="true">
+                  <AppIcon name="delete" size={18} />
+                </span>
                 <span>삭제</span>
               </button>
             </div>

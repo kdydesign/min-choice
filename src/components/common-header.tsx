@@ -1,3 +1,5 @@
+import { AppIcon } from "./icons/app-icon";
+
 interface CommonHeaderProps {
   title?: string;
   onBack?: () => void;
@@ -36,7 +38,7 @@ export function CommonHeader({
 
         <div className="common-mobile-header-brand" aria-label={title}>
           <span className="common-mobile-header-avatar" aria-hidden="true">
-            👶
+            <AppIcon name="header" size={24} />
           </span>
           <strong className="common-mobile-header-title">{title}</strong>
         </div>

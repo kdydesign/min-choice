@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
+import { AppIcon, type AppIconName } from "../../../components/icons/app-icon";
 import { Panel } from "../../../components/panel";
 import { EmptyState } from "../../../components/empty-state";
 import type { DailyMealPlan, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
 import { MEAL_LABELS } from "../../menus/data/menu-catalog";
 
-const MEAL_VISUALS: Record<MealType, { icon: string; summary: string }> = {
+const MEAL_VISUALS: Record<MealType, { iconName: AppIconName; summary: string }> = {
   breakfast: {
-    icon: "☀️",
+    iconName: "breakfast",
     summary: "부드럽고 가벼운 시작"
   },
   lunch: {
-    icon: "🌿",
+    iconName: "lunch",
     summary: "영양 균형을 챙긴 한 끼"
   },
   dinner: {
-    icon: "🌙",
+    iconName: "dinner",
     summary: "편안하게 마무리하는 저녁"
   }
 };
@@ -141,7 +142,7 @@ export function MealResultsSection({
                   <div className="meal-head">
                     <div className="meal-title-block">
                       <span className="meal-icon" aria-hidden="true">
-                        {MEAL_VISUALS[mealType].icon}
+                        <AppIcon name={MEAL_VISUALS[mealType].iconName} size={24} />
                       </span>
                       <div>
                         <p className="eyebrow">{MEAL_LABELS[mealType]}</p>

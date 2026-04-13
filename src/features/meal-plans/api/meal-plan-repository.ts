@@ -11,6 +11,10 @@ import {
   ensureSupabasePersistenceReady,
   getSupabaseCurrentUserId
 } from "../../auth/api/supabase-bootstrap-service";
+import {
+  getMealMetricsByType,
+  getMenuDefinitionByKey
+} from "../../menus/data/menu-catalog";
 
 interface MealPlanRow {
   id: string;
@@ -80,16 +84,37 @@ function parseSubstituteMap(value: unknown) {
   );
 }
 
+function parseNumericValue(value: unknown, fallback: number) {
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+    return fallback;
+  }
+
+  return parsedValue;
+}
+
 function parseMealRecommendation(
   value: unknown,
   mealType: MealType,
-  mealInputs: string[]
+  mealInputs: string[],
+  storedItem?: MealPlanItemRow | null
 ): MealRecommendation {
   const raw = typeof value === "object" && value !== null ? (value as Partial<MealRecommendation>) : {};
   const usedIngredients = parseStringArray(raw.usedIngredients);
   const missingIngredients = parseStringArray(raw.missingIngredients);
   const inputIngredients = parseStringArray(raw.inputIngredients);
   const allIngredients = parseStringArray(raw.allIngredients);
+  const menuDefinition = getMenuDefinitionByKey({
+    id: typeof raw.id === "string" ? raw.id : null,
+    name: typeof raw.name === "string" ? raw.name : null
+  });
+  const metricFallback = menuDefinition ?? getMealMetricsByType(mealType);
 
   return {
     id: typeof raw.id === "string" && raw.id ? raw.id : `saved-${mealType}`,
@@ -117,6 +142,9 @@ function parseMealRecommendation(
     inputIngredients: inputIngredients.length > 0 ? inputIngredients : mealInputs,
     allIngredients:
       allIngredients.length > 0 ? allIngredients : [...new Set([...usedIngredients, ...missingIngredients])],
+    calories: parseNumericValue(raw.calories, metricFallback.calories),
+    protein: parseNumericValue(raw.protein, metricFallback.protein),
+    cookTimeMinutes: parseNumericValue(raw.cookTimeMinutes, metricFallback.cookTimeMinutes),
     promptVersion: typeof raw.promptVersion === "string" ? raw.promptVersion : "saved-plan-v1",
     isFallback: Boolean(raw.isFallback)
   };
@@ -162,7 +190,8 @@ function mapMealPlanRow(row: MealPlanRow, childName: string): DailyMealPlan {
     results[mealType] = parseMealRecommendation(
       matchedItem?.result_payload_json,
       mealType,
-      mealInputs[mealType]
+      mealInputs[mealType],
+      matchedItem
     );
   });
 

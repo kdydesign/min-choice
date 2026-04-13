@@ -1,20 +1,24 @@
+import { AppIcon, type AppIconName } from "../../../components/icons/app-icon";
 import type { MealRecommendation, MealType } from "../../../types/domain";
 import { MEAL_LABELS } from "../../menus/data/menu-catalog";
 import { MealResultDetailSection } from "./meal-result-detail-section";
 
-const MEAL_META: Record<MealType, { icon: string; color: string; chipBackground: string }> = {
+const MEAL_META: Record<
+  MealType,
+  { iconName: AppIconName; color: string; chipBackground: string }
+> = {
   breakfast: {
-    icon: "☀️",
+    iconName: "breakfast",
     color: "#4A90E2",
     chipBackground: "rgba(74, 144, 226, 0.2)"
   },
   lunch: {
-    icon: "🌤️",
+    iconName: "lunch",
     color: "#6BC47D",
     chipBackground: "rgba(107, 196, 125, 0.2)"
   },
   dinner: {
-    icon: "🌙",
+    iconName: "dinner",
     color: "#FF8A7A",
     chipBackground: "rgba(255, 138, 122, 0.2)"
   }
@@ -43,8 +47,8 @@ export function MealResultCard({
       className={`meal-result-card meal-result-card-${mealType} ${expanded ? "is-expanded" : "is-collapsed"}`}
     >
       <div className="meal-result-card-head">
-        <span className="meal-result-card-emoji" aria-hidden="true">
-          {meta.icon}
+        <span className="meal-result-card-icon" aria-hidden="true" style={{ color: meta.color }}>
+          <AppIcon name={meta.iconName} size={24} />
         </span>
         <h2>{MEAL_LABELS[mealType]}</h2>
       </div>
@@ -52,7 +56,9 @@ export function MealResultCard({
       <div className="meal-result-card-body">
         <div className="meal-result-card-copy">
           <h3 style={{ color: meta.color }}>{meal.name}</h3>
-          <p className="meal-result-description">{meal.description}</p>
+          <p className="meal-result-description">
+            {meal.recommendationText || meal.description}
+          </p>
         </div>
 
         <div className="meal-result-chip-row">
@@ -68,9 +74,24 @@ export function MealResultCard({
         </div>
 
         <div className="meal-result-stats">
-          <span>🍼 12개월 기준</span>
-          <span>🍽️ {meal.usedIngredients.length}개 사용</span>
-          <span>⏰ 3줄 조리법</span>
+          <span className="meal-result-stat">
+            <span className="meal-result-stat-icon calories" aria-hidden="true">
+              <AppIcon name="calories" size={16} />
+            </span>
+            <span>{meal.calories}kcal</span>
+          </span>
+          <span className="meal-result-stat">
+            <span className="meal-result-stat-icon protein" aria-hidden="true">
+              <AppIcon name="protein" size={16} />
+            </span>
+            <span>단백질 {meal.protein}g</span>
+          </span>
+          <span className="meal-result-stat">
+            <span className="meal-result-stat-icon cook-time" aria-hidden="true">
+              <AppIcon name="cookTime" size={16} />
+            </span>
+            <span>{meal.cookTimeMinutes}분</span>
+          </span>
         </div>
 
         <button

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CommonBottomMenu } from "../components/common-bottom-menu";
 import { CommonHeader } from "../components/common-header";
 import { ErrorState } from "../components/error-state";
+import { AppIcon } from "../components/icons/app-icon";
 import { SessionCheckingOverlay } from "../features/auth/components/session-checking-overlay";
 import { listChildProfiles } from "../features/children/api/child-profile-repository";
 import {
@@ -387,7 +388,7 @@ export function HomePage() {
         {selectedChild ? (
           <section className="meal-plan-selected-child-card">
             <div className="meal-plan-selected-child-avatar" aria-hidden="true">
-              👶
+              <AppIcon name="childProfile" size={24} />
             </div>
             <div className="meal-plan-selected-child-copy">
               <strong>{selectedChild.name}</strong>

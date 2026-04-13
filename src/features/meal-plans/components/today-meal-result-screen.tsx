@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { CommonHeader } from "../../../components/common-header";
+import { AppIcon } from "../../../components/icons/app-icon";
 import type { DailyMealPlan, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
 import { MealGenerationProgress, type MealGenerationStage } from "./meal-generation-progress";
@@ -98,7 +99,9 @@ export function TodayMealResultScreen({
 
         <section className="meal-result-tip-card">
           <div className="meal-result-tip-head">
-            <span aria-hidden="true">💡</span>
+            <span className="meal-result-tip-icon" aria-hidden="true">
+              <AppIcon name="tip" size={20} />
+            </span>
             <h3>이유식 조리 팁</h3>
           </div>
           <ul>

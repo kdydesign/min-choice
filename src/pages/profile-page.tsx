@@ -4,9 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { CommonBottomMenu } from "../components/common-bottom-menu";
 import { CommonHeader } from "../components/common-header";
 import { ErrorState } from "../components/error-state";
+import { AppIcon } from "../components/icons/app-icon";
 import { LoadingState } from "../components/loading-state";
+import { ChildRegistrationScreen } from "../features/children/components/child-registration-screen";
 import { ChildProfilesSection } from "../features/children/components/child-profiles-section";
-import { FirstChildRegistrationView } from "../features/children/components/first-child-registration-view";
 import { useAuth } from "../features/auth/hooks/use-auth";
 import {
   deleteChildProfile,
@@ -23,6 +24,8 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+type ProfileViewMode = "list" | "create" | "edit";
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -30,7 +33,8 @@ export function ProfilePage() {
   const selectedChildId = useAppStore((state) => state.selectedChildId);
   const setSelectedChild = useAppStore((state) => state.setSelectedChild);
   const setSelectedPlan = useAppStore((state) => state.setSelectedPlan);
-  const [editingProfile, setEditingProfile] = useState<ChildProfile | null>(null);
+  const [viewMode, setViewMode] = useState<ProfileViewMode>("list");
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -65,9 +69,7 @@ export function ProfilePage() {
       });
       await queryClient.invalidateQueries({ queryKey: ["children"] });
       setSelectedChild(profile.id);
-      setEditingProfile(null);
       setActionError(null);
-      setActionSuccess(profiles.length === 0 ? "첫 아이 프로필을 저장했어요." : "아이 프로필을 저장했어요.");
     }
   });
 
@@ -84,7 +86,8 @@ export function ProfilePage() {
       );
       await queryClient.invalidateQueries({ queryKey: ["children"] });
       await queryClient.invalidateQueries({ queryKey: ["meal-plans"] });
-      setEditingProfile(null);
+      setEditingChildId(null);
+      setViewMode("list");
       setActionError(null);
       setActionSuccess("아이 프로필을 삭제했어요.");
 
@@ -99,6 +102,8 @@ export function ProfilePage() {
     payload: Omit<ChildProfile, "id" | "createdAt" | "updatedAt">,
     editingId?: string
   ) {
+    const isEditing = Boolean(editingId);
+    const wasEmpty = profiles.length === 0;
     const now = new Date().toISOString();
     const original = profiles.find((profile) => profile.id === editingId);
     const nextProfile: SaveChildProfileInput = {
@@ -113,6 +118,11 @@ export function ProfilePage() {
 
     try {
       await profileMutation.mutateAsync(nextProfile);
+      setEditingChildId(null);
+      setViewMode("list");
+      setActionSuccess(
+        wasEmpty ? "첫 아이 프로필을 저장했어요." : isEditing ? "아이 프로필을 수정했어요." : "새 아이 프로필을 저장했어요."
+      );
     } catch (error) {
       setActionSuccess(null);
       setActionError(getErrorMessage(error, "아이 프로필을 저장하지 못했어요."));
@@ -133,15 +143,49 @@ export function ProfilePage() {
     actionError ??
     (profilesError ? getErrorMessage(profilesError, "아이 프로필을 불러오지 못했어요.") : null);
   const isEmptyState = !isProfilesLoading && profiles.length === 0;
+  const resolvedViewMode: ProfileViewMode = isEmptyState ? "create" : viewMode;
+  const editingProfile =
+    resolvedViewMode === "edit" && editingChildId
+      ? profiles.find((profile) => profile.id === editingChildId) ?? null
+      : null;
+  const isRegistrationMode = resolvedViewMode !== "list";
+  const isMissingEditingProfile =
+    resolvedViewMode === "edit" && !isProfilesLoading && !editingProfile;
+
+  function handleOpenCreate() {
+    setActionError(null);
+    setActionSuccess(null);
+    setEditingChildId(null);
+    setViewMode("create");
+  }
+
+  function handleOpenEdit(profile: ChildProfile) {
+    setActionError(null);
+    setActionSuccess(null);
+    setEditingChildId(profile.id);
+    setViewMode("edit");
+  }
+
+  function handleCloseRegistration() {
+    setActionError(null);
+    setEditingChildId(null);
+
+    if (profiles.length === 0) {
+      navigate("/");
+      return;
+    }
+
+    setViewMode("list");
+  }
 
   return (
     <div className="profile-figma-page">
       <CommonHeader
-        title={isEmptyState ? "베베 초이스" : "우리 아이 선택"}
-        onBack={() => navigate("/")}
+        title={isRegistrationMode ? "베베 초이스" : "우리 아이 선택"}
+        onBack={isRegistrationMode ? handleCloseRegistration : () => navigate("/")}
       />
 
-      <main className={`profile-selection-layout ${isEmptyState ? "is-empty-state" : ""}`}>
+      <main className={`profile-selection-layout ${isRegistrationMode ? "is-empty-state" : ""}`}>
         {pageError ? (
           <ErrorState
             title="아이 프로필 화면을 준비하지 못했어요"
@@ -167,10 +211,27 @@ export function ProfilePage() {
         ) : null}
 
         {!isProfilesLoading ? (
-          isEmptyState ? (
-            <FirstChildRegistrationView
+          isMissingEditingProfile ? (
+            <ErrorState
+              title="아이 정보를 찾지 못했어요"
+              description="수정하려는 아이 프로필이 없거나 새로고침으로 상태가 초기화되었어요."
+              action={
+                <button
+                  type="button"
+                  className="secondary small"
+                  onClick={handleCloseRegistration}
+                >
+                  목록으로 돌아가기
+                </button>
+              }
+            />
+          ) : isRegistrationMode ? (
+            <ChildRegistrationScreen
+              mode={resolvedViewMode === "edit" ? "edit" : "create"}
+              initialProfile={editingProfile}
               submitting={profileMutation.isPending}
               onSave={handleSaveProfile}
+              onCancel={handleCloseRegistration}
             />
           ) : (
             <>
@@ -180,40 +241,17 @@ export function ProfilePage() {
                 onSelect={(childId) => {
                   setSelectedChild(childId);
                   setSelectedPlan("");
-                  setEditingProfile(null);
+                  setEditingChildId(null);
+                  setViewMode("list");
                 }}
-                onSave={handleSaveProfile}
-                onEdit={setEditingProfile}
+                onAdd={handleOpenCreate}
+                onEdit={handleOpenEdit}
                 onDelete={(childId) => void handleDeleteProfile(childId)}
-                editingProfile={editingProfile}
-                onCancelEdit={() => setEditingProfile(null)}
               />
 
               <div className="profile-page-actions">
                 <button type="button" className="profile-selection-logout-button" onClick={() => void signOut()}>
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path
-                      d="M15 16.5L19.5 12L15 7.5"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M19.5 12H10.5"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M13 20H7.5C6.67157 20 6 19.3284 6 18.5V5.5C6 4.67157 6.67157 4 7.5 4H13"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <AppIcon name="logout" size={20} aria-hidden="true" />
                   <span>{isAnonymous ? "시작 화면으로" : "로그아웃"}</span>
                 </button>
               </div>

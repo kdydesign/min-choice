@@ -3,6 +3,7 @@ import { guardGeneratedMealContent } from "./ai-response-guard";
 
 const baseInput = {
   mealType: "breakfast" as const,
+  ageMonths: 12,
   menuName: "소고기 애호박 죽",
   cookingStyle: "죽",
   usedIngredients: ["소고기", "애호박"],
@@ -62,5 +63,21 @@ describe("guardGeneratedMealContent", () => {
       promptVersion: "openai-v2",
       isFallback: false
     });
+  });
+
+  it("returns the fallback narrative when dangerous text is present", () => {
+    const result = guardGeneratedMealContent({
+      ...baseInput,
+      generated: {
+        recommendationText: "지금 재료로 매콤하게 만들면 잘 먹어요.",
+        recipeSummary: ["재료를 크게 썹니다.", "충분히 끓입니다.", "질감을 맞춥니다."],
+        missingIngredientExplanation: "쌀이 있으면 더 안정적으로 만들 수 있어요.",
+        caution: "없음",
+        promptVersion: "openai-v1",
+        isFallback: false
+      }
+    });
+
+    expect(result.isFallback).toBe(true);
   });
 });

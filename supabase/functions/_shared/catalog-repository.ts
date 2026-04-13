@@ -19,6 +19,9 @@ interface MenuRow {
   cooking_style: string | null;
   main_protein_key: string | null;
   description: string | null;
+  estimated_calories_kcal: number | null;
+  protein_grams: number | null;
+  cook_time_minutes: number | null;
   texture_note: string | null;
   caution_template: string | null;
   recipe_template_json: unknown;
@@ -142,6 +145,9 @@ function mapMenuRow(row: MenuRow): MenuDefinition | null {
     cookingStyle: row.cooking_style?.trim() || "추천",
     mainProtein: row.main_protein_key?.trim() || "맞춤형",
     description: row.description?.trim() || `${name} 추천 메뉴`,
+    calories: Number.isFinite(row.estimated_calories_kcal) ? Number(row.estimated_calories_kcal) : 180,
+    protein: Number.isFinite(row.protein_grams) ? Number(row.protein_grams) : 8,
+    cookTimeMinutes: Number.isFinite(row.cook_time_minutes) ? Number(row.cook_time_minutes) : 15,
     textureNote: row.texture_note?.trim() || "아이가 먹기 좋은 질감으로 조절해 주세요.",
     caution: row.caution_template?.trim() || "",
     recipeSummary: parseStringArray(row.recipe_template_json).slice(0, 3)
@@ -172,6 +178,9 @@ export async function loadMenuCatalog() {
           "cooking_style",
           "main_protein_key",
           "description",
+          "estimated_calories_kcal",
+          "protein_grams",
+          "cook_time_minutes",
           "texture_note",
           "caution_template",
           "recipe_template_json"

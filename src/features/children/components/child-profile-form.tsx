@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AppIcon } from "../../../components/icons/app-icon";
 import { TagInput } from "../../../components/tag-input";
 import type { ChildProfile } from "../../../types/domain";
 import {
@@ -178,7 +179,7 @@ export function ChildProfileForm({
           <label className="child-profile-onboarding-card is-compact">
             <div className="child-profile-onboarding-card-header">
               <div className="child-profile-onboarding-card-icon name" aria-hidden="true">
-                😊
+                <AppIcon name="name" size={18} />
               </div>
               <span className="child-profile-onboarding-card-label">아이 이름</span>
             </div>
@@ -203,7 +204,7 @@ export function ChildProfileForm({
           <label className="child-profile-onboarding-card has-helper">
             <div className="child-profile-onboarding-card-header">
               <div className="child-profile-onboarding-card-icon months" aria-hidden="true">
-                📅
+                <AppIcon name="ageMonths" size={18} />
               </div>
               <span className="child-profile-onboarding-card-label">개월 수</span>
             </div>
@@ -249,7 +250,7 @@ export function ChildProfileForm({
           <label className="child-profile-onboarding-card is-compact">
             <div className="child-profile-onboarding-card-header">
               <div className="child-profile-onboarding-card-icon birth" aria-hidden="true">
-                🎂
+                <AppIcon name="birthDate" size={18} />
               </div>
               <span className="child-profile-onboarding-card-label">생년월일</span>
               <span className="child-profile-onboarding-card-optional">(선택)</span>
@@ -281,7 +282,7 @@ export function ChildProfileForm({
           <div className="child-profile-onboarding-card has-helper is-allergy">
             <div className="child-profile-onboarding-card-header">
               <div className="child-profile-onboarding-card-icon allergy" aria-hidden="true">
-                ⚠️
+                <AppIcon name="allergy" size={18} />
               </div>
               <span className="child-profile-onboarding-card-label">알레르기 재료</span>
               <span className="child-profile-onboarding-card-optional">(선택)</span>
@@ -407,7 +408,7 @@ export function ChildProfileForm({
         >
           {isOnboarding ? (
             <span className="child-profile-form-submit-icon" aria-hidden="true">
-              ✓
+              <AppIcon name="check" size={16} />
             </span>
           ) : null}
           {submitLabel}

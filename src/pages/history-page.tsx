@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { CommonBottomMenu } from "../components/common-bottom-menu";
 import { ErrorState } from "../components/error-state";
+import { AppIcon } from "../components/icons/app-icon";
 import { SessionCheckingOverlay } from "../features/auth/components/session-checking-overlay";
 import { listChildProfiles } from "../features/children/api/child-profile-repository";
 import { MealHistorySection } from "../features/meal-plans/components/meal-history-section";
@@ -197,7 +198,7 @@ export function HistoryPage() {
           aria-label="아이 프로필로 이동"
         >
           <span className="history-figma-profile-avatar" aria-hidden="true">
-            👶
+            <AppIcon name="childProfile" size={24} />
           </span>
           <span className="history-figma-profile-copy">
             <strong>{selectedChild ? `${selectedChild.name}의 식단 이력` : "아이의 식단 이력"}</strong>

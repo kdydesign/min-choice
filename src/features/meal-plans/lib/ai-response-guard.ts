@@ -5,6 +5,7 @@ import { generateMealNarrative } from "./meal-narrative";
 interface GuardInput {
   generated: Partial<GeneratedMealContent> | null | undefined;
   mealType: "breakfast" | "lunch" | "dinner";
+  ageMonths: number;
   menuName: string;
   cookingStyle: string;
   usedIngredients: string[];
@@ -18,9 +19,45 @@ function containsAllergyText(text: string, allergies: string[]) {
   return uniqueIngredients(allergies).some((allergy) => text.includes(allergy));
 }
 
+const DANGEROUS_PHRASES = [
+  "통째로",
+  "크게 썰",
+  "큰 덩어리",
+  "질식",
+  "삼키기 쉬운 크기",
+  "매운",
+  "매콤",
+  "고추",
+  "후추",
+  "짠맛",
+  "간을 세게",
+  "자극적인",
+  "꿀",
+  "술",
+  "약처럼",
+  "치료",
+  "완치",
+  "병을 낫게"
+];
+
+function containsDangerousText(text: string) {
+  return DANGEROUS_PHRASES.some((phrase) => text.includes(phrase));
+}
+
+function containsAgeMismatch(text: string, ageMonths: number) {
+  const matches = [...text.matchAll(/(\d+)\s*개월/g)].map((match) => Number(match[1]));
+
+  if (matches.length === 0) {
+    return false;
+  }
+
+  return matches.some((matchedMonths) => matchedMonths !== ageMonths);
+}
+
 export function guardGeneratedMealContent(input: GuardInput): GeneratedMealContent {
   const fallback = generateMealNarrative({
     mealType: input.mealType,
+    ageMonths: input.ageMonths,
     menuName: input.menuName,
     cookingStyle: input.cookingStyle,
     usedIngredients: input.usedIngredients,
@@ -46,7 +83,15 @@ export function guardGeneratedMealContent(input: GuardInput): GeneratedMealConte
     containsAllergyText(recommendationText, input.allergies) ||
     containsAllergyText(missingIngredientExplanation, input.allergies) ||
     containsAllergyText(caution, input.allergies) ||
-    guardedRecipeSummary.some((step) => containsAllergyText(step, input.allergies));
+    guardedRecipeSummary.some((step) => containsAllergyText(step, input.allergies)) ||
+    containsAgeMismatch(recommendationText, input.ageMonths) ||
+    containsAgeMismatch(missingIngredientExplanation, input.ageMonths) ||
+    containsAgeMismatch(caution, input.ageMonths) ||
+    guardedRecipeSummary.some((step) => containsAgeMismatch(step, input.ageMonths)) ||
+    containsDangerousText(recommendationText) ||
+    containsDangerousText(missingIngredientExplanation) ||
+    containsDangerousText(caution) ||
+    guardedRecipeSummary.some((step) => containsDangerousText(step));
 
   if (invalidText) {
     return fallback;

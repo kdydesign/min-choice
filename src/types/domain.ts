@@ -49,6 +49,9 @@ export interface MenuDefinition {
   textureNote: string;
   caution: string;
   recipeSummary: string[];
+  calories: number;
+  protein: number;
+  cookTimeMinutes: number;
 }
 
 export interface GeneratedMealContent {
@@ -78,6 +81,9 @@ export interface MealRecommendation {
   alternatives: string[];
   inputIngredients: string[];
   allIngredients: string[];
+  calories: number;
+  protein: number;
+  cookTimeMinutes: number;
   promptVersion: string;
   isFallback: boolean;
 }

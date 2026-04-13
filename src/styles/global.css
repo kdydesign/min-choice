@@ -2212,6 +2212,15 @@ li + li {
   margin: 0 auto;
 }
 
+.app-icon {
+  display: block;
+  flex: none;
+  transition:
+    color 180ms ease,
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
 .common-mobile-header-avatar {
   width: 39.997px;
   height: 39.997px;
@@ -2220,8 +2229,12 @@ li + li {
   justify-content: center;
   border-radius: 999px;
   background: #ffcb8e;
-  font-size: 20px;
-  line-height: 28px;
+  color: #8a4a24;
+}
+
+.common-mobile-header-avatar svg {
+  width: 22px;
+  height: 22px;
 }
 
 .common-mobile-header-title {
@@ -2275,17 +2288,26 @@ li + li {
   color: #155dfc;
 }
 
+.common-bottom-menu-item.active .common-bottom-menu-icon {
+  transform: translateY(-1px);
+}
+
+.common-bottom-menu-item.active .common-bottom-menu-label {
+  font-weight: 600;
+}
+
 .common-bottom-menu-icon {
   width: 24px;
   height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: transform 180ms ease;
 }
 
 .common-bottom-menu-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
 }
 
 .common-bottom-menu-label {
@@ -2483,11 +2505,15 @@ li + li {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  line-height: 32px;
   border-radius: 999px;
   background: #ffcb8e;
   flex: 0 0 auto;
+  color: #8a4a24;
+}
+
+.history-figma-profile-avatar svg {
+  width: 22px;
+  height: 22px;
 }
 
 .history-figma-profile-copy {
@@ -2666,8 +2692,8 @@ li + li {
 
 .history-figma-date-icon svg,
 .history-figma-chevron svg {
-  width: 19.994px;
-  height: 19.994px;
+  width: 18px;
+  height: 18px;
 }
 
 .history-figma-date strong {
@@ -2696,16 +2722,29 @@ li + li {
 .history-figma-line {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 7.997px;
   color: #1e2939;
   font-size: 14px;
   line-height: 20px;
 }
 
 .history-figma-line-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.998px;
   flex: 0 0 auto;
   color: #4a5565;
   font-weight: 500;
+}
+
+.history-figma-line-icon {
+  width: 15.995px;
+  height: 15.995px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .history-figma-line-value {
@@ -2713,6 +2752,7 @@ li + li {
   color: #1e2939;
   font-weight: 500;
   word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .figma-screen-head {
@@ -2824,7 +2864,12 @@ li + li {
   place-items: center;
   border-radius: 999px;
   background: #fff;
-  font-size: 1.5rem;
+  color: #8a4a24;
+}
+
+.meal-plan-selected-child-avatar svg {
+  width: 22px;
+  height: 22px;
 }
 
 .meal-plan-selected-child-copy {
@@ -3693,9 +3738,26 @@ li + li {
   color: #1f2937;
 }
 
-.meal-result-card-emoji {
-  font-size: 1.5rem;
-  line-height: 1;
+.meal-result-card-icon {
+  width: 31.999px;
+  height: 31.999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.meal-result-card-breakfast .meal-result-card-icon {
+  background: rgba(74, 144, 226, 0.12);
+}
+
+.meal-result-card-lunch .meal-result-card-icon {
+  background: rgba(107, 196, 125, 0.14);
+}
+
+.meal-result-card-dinner .meal-result-card-icon {
+  background: rgba(255, 138, 122, 0.14);
 }
 
 .meal-result-card-body {
@@ -3759,12 +3821,47 @@ li + li {
   flex-wrap: wrap;
   gap: 15.995px;
   row-gap: 7.997px;
+  align-items: center;
   min-height: 28.606px;
   padding-top: 8.612px;
   border-top: 0.615px solid rgba(0, 0, 0, 0.1);
   color: #4a5565;
   font-size: 14px;
   line-height: 20px;
+  letter-spacing: -0.15px;
+}
+
+.meal-result-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.998px;
+  white-space: nowrap;
+}
+
+.meal-result-stat-icon {
+  width: 15.995px;
+  height: 15.995px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.meal-result-stat-icon.calories {
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.meal-result-stat-icon.protein {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.meal-result-stat-icon.cook-time {
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.12);
 }
 
 .meal-result-toggle {
@@ -3885,6 +3982,17 @@ li + li {
   align-items: center;
   gap: 7.997px;
   margin-bottom: 12px;
+}
+
+.meal-result-tip-icon {
+  width: 23.998px;
+  height: 23.998px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .meal-result-tip-head h3 {
@@ -4152,8 +4260,12 @@ li + li {
   place-items: center;
   border-radius: 999px;
   background: linear-gradient(135deg, #ffe8b3 0%, #ffd98e 100%);
-  font-size: 2.25rem;
-  line-height: 1;
+  color: #8a4a24;
+}
+
+.first-child-registration-hero-icon svg {
+  width: 36px;
+  height: 36px;
 }
 
 .first-child-registration-hero h1 {
@@ -4222,24 +4334,31 @@ li + li {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  font-size: 18px;
-  line-height: 28px;
+}
+
+.child-profile-onboarding-card-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .child-profile-onboarding-card-icon.name {
   background: #b3d9ff;
+  color: #3b82f6;
 }
 
 .child-profile-onboarding-card-icon.months {
   background: #d4e8d4;
+  color: #16a34a;
 }
 
 .child-profile-onboarding-card-icon.birth {
   background: #ffd4c9;
+  color: #f97316;
 }
 
 .child-profile-onboarding-card-icon.allergy {
   background: #ffe8b3;
+  color: #d97706;
 }
 
 .child-profile-onboarding-card-label {
@@ -4483,9 +4602,6 @@ li + li {
   justify-content: center;
   width: 19.994px;
   height: 19.994px;
-  font-size: 16px;
-  line-height: 1;
-  font-weight: 700;
 }
 
 .child-profile-form-cancel {
@@ -4552,7 +4668,12 @@ li + li {
   place-items: center;
   border-radius: 999px;
   background: #fff;
-  font-size: 1.5rem;
+  color: #8a4a24;
+}
+
+.profile-selection-card-avatar svg {
+  width: 22px;
+  height: 22px;
 }
 
 .profile-selection-card-identity h3 {
@@ -4575,11 +4696,20 @@ li + li {
   border-radius: 12px;
   background: transparent;
   color: #4b5563;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
 
 .profile-selection-card-menu svg {
   width: 20px;
   height: 20px;
+}
+
+.profile-selection-card-menu:hover,
+.profile-selection-card-menu:focus-visible {
+  background: rgba(255, 255, 255, 0.72);
+  color: #1f2937;
 }
 
 .profile-selection-card-menu-wrap {
@@ -4616,6 +4746,15 @@ li + li {
   font-size: 16px;
   line-height: 24px;
   font-weight: 500;
+}
+
+.profile-selection-card-delete-icon {
+  width: 17.996px;
+  height: 17.996px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 
 .profile-selection-tag-row {
