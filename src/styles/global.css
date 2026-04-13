@@ -1905,10 +1905,10 @@ li + li {
 /* Reference UI overrides */
 
 .login-screen {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px 16px calc(48px + env(safe-area-inset-bottom));
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
   background: #fff8f0;
 }
 
@@ -2037,6 +2037,17 @@ li + li {
   line-height: 24px;
   font-weight: 500;
   letter-spacing: -0.02em;
+}
+
+.login-screen-copyright {
+  margin: 28px 0 0;
+  width: max-content;
+  justify-self: center;
+  color: #99a1af;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .session-checking-screen {

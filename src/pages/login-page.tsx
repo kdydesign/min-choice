@@ -89,6 +89,8 @@ export function LoginPage() {
         <p className="login-screen-link" aria-hidden="true">
           간편하게 지금 시작해 보세요!
         </p>
+
+        <p className="login-screen-copyright">© 2026 min.papa.dy. All rights reserved.</p>
       </section>
     </main>
   );
