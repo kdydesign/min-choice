@@ -16,6 +16,10 @@
 - Figma 구현 가이드: [./docs/figma-codex-implementation-guide.md](./docs/figma-codex-implementation-guide.md)
 - 운영 기준: [./docs/deployment/vercel-hosting.md](./docs/deployment/vercel-hosting.md)
 
+현재 Figma 디자인 기준:
+
+- 디자인 버전: `v38`
+
 판단 원칙:
 
 - 제품 범위 판단은 `docs/product-spec.md`를 따른다.
