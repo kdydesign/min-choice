@@ -13,6 +13,19 @@ interface MealNarrativeInput {
   caution: string;
 }
 
+function buildFallbackRecipeFull(input: MealNarrativeInput) {
+  const leadIngredients = formatIngredientList(input.usedIngredients.slice(0, 3)) || "준비한 재료";
+  const summarySteps = input.recipeSummary.slice(0, 3);
+
+  return [
+    `${leadIngredients}를 아이가 먹기 좋은 크기로 잘게 준비합니다.`,
+    `${input.cookingStyle} 스타일에 맞게 냄비나 팬에 재료를 넣고 충분히 익히기 시작합니다.`,
+    summarySteps[0] ?? "주재료를 먼저 익혀 부드러운 식감을 만들 준비를 합니다.",
+    summarySteps[1] ?? "필요한 곡물이나 수분을 더해 질감을 안정적으로 맞춥니다.",
+    summarySteps[2] ?? "마지막에 한 번 더 섞어 아이 개월수에 맞는 식감으로 마무리합니다."
+  ];
+}
+
 function getAgeTextureGuide(ageMonths: number) {
   if (ageMonths <= 10) {
     return "푹 익혀 곱게 으깨 주세요.";
@@ -38,6 +51,7 @@ export function generateMealNarrative(input: MealNarrativeInput): GeneratedMealC
   return {
     recommendationText: `${lead} ${input.ageMonths}개월 아이가 먹기 좋게 ${input.cookingStyle} 스타일로 만들기 좋아 ${MEAL_LABELS[input.mealType]}에 잘 어울려요.`,
     recipeSummary: input.recipeSummary.slice(0, 3),
+    recipeFull: buildFallbackRecipeFull(input),
     missingIngredientExplanation: missingText,
     caution: input.caution || getAgeTextureGuide(input.ageMonths),
     promptVersion: "fallback-v1",

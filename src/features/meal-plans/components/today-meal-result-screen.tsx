@@ -79,6 +79,19 @@ export function TodayMealResultScreen({
           />
         ) : null}
 
+        {plan.notices.length > 0 ? (
+          <div className="notice-list meal-result-notice-list" role="status" aria-live="polite">
+            {plan.notices.map((notice) => (
+              <div
+                key={`${notice.tone}-${notice.message}`}
+                className={`notice ${notice.tone} meal-result-inline-notice`}
+              >
+                {notice.message}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         {MEAL_TYPES.map((mealType) => {
           const meal = plan.results[mealType];
           const isExpanded = expandedMealType === mealType;

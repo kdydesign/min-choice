@@ -1,3 +1,4 @@
+import { AppIcon } from "../../../components/icons/app-icon";
 import type { ChildProfile, MealDraft, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
 import { MEAL_LABELS } from "../../menus/data/menu-catalog";
@@ -62,6 +63,12 @@ export function MealInputSection({
                 key={mealType}
                 mealType={mealType}
                 title={`${MEAL_LABELS[mealType]} 재료`}
+                icon={
+                  <AppIcon
+                    name={mealType === "breakfast" ? "breakfast" : mealType === "lunch" ? "lunch" : "dinner"}
+                    size={20}
+                  />
+                }
                 value={draft[mealType]}
                 warningTags={allergyWarnings[mealType]}
                 placeholder="재료 추가"
@@ -73,7 +80,7 @@ export function MealInputSection({
 
           <div className="meal-plan-info-box">
             <span className="meal-plan-info-icon" aria-hidden="true">
-              🧡
+              <AppIcon name="allergy" size={20} />
             </span>
             <div className="meal-plan-info-copy">
               <p>{allergySummary}</p>

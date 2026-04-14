@@ -1,6 +1,8 @@
 import {
   type ChildProfile,
   type DailyMealPlan,
+  type GenerationMode,
+  type InputStrength,
   type MealRecommendation,
   type MealType,
   type MenuDefinition,
@@ -14,13 +16,14 @@ import {
 } from "../../ingredients/lib/ingredient-utils";
 import {
   DEFAULT_SUBSTITUTES,
-  getMealMetricsByType,
   MEAL_LABELS,
   MENU_CATALOG
 } from "../../menus/data/menu-catalog";
 import { deriveAgeMonthsFromBirthDate } from "../../children/lib/profile-date-utils";
 import { guardGeneratedMealContent } from "./ai-response-guard";
+import { prepareMealGenerationContext, type MealGenerationContext } from "./auto-supplement";
 import { generateMealNarrative } from "./meal-narrative";
+import { applyNutritionEstimateToRecommendation } from "./nutrition-estimate";
 
 export interface DailyMealPlanWithCandidates {
   plan: DailyMealPlan;
@@ -30,6 +33,8 @@ export interface DailyMealPlanWithCandidates {
 interface BuildDailyMealPlanInput {
   child: ChildProfile;
   mealInputs: Record<MealType, string[]>;
+  generationMode?: GenerationMode;
+  allowAutoSupplement?: boolean;
   menuCatalog?: MenuDefinition[];
 }
 
@@ -140,6 +145,41 @@ function getAllMenuIngredients(menu: MenuDefinition) {
   ]);
 }
 
+function deriveGenerationMode(
+  mealInputs: Record<MealType, string[]>,
+  requestedMode?: GenerationMode
+): GenerationMode {
+  if (requestedMode) {
+    return requestedMode;
+  }
+
+  const hasAnyIngredients = MEAL_TYPES.some((mealType) => mealInputs[mealType].length > 0);
+  return hasAnyIngredients ? "ingredient_first" : "auto_recommend";
+}
+
+function toRoundedScore(value: number) {
+  return Number(Math.max(0, Math.min(1, value)).toFixed(2));
+}
+
+function buildScoringMetadata(
+  usedInputIngredients: string[],
+  inputIngredients: string[],
+  isFallback: boolean,
+  scoreBreakdown?: Partial<CandidateScoreBreakdown>
+) {
+  const ingredientUtilizationScore =
+    inputIngredients.length > 0 ? usedInputIngredients.length / inputIngredients.length : 0;
+
+  return {
+    ingredientUtilizationScore: toRoundedScore(
+      scoreBreakdown?.ingredientUtilizationScore ?? ingredientUtilizationScore
+    ),
+    ingredientCoverageScore: toRoundedScore(scoreBreakdown?.ingredientCoverageScore ?? 0),
+    lowMissingIngredientScore: toRoundedScore(scoreBreakdown?.lowMissingIngredientScore ?? 0),
+    diversityScore: toRoundedScore(scoreBreakdown?.diversityScore ?? (isFallback ? 0.35 : 0.7))
+  };
+}
+
 function hasAllergyConflict(menu: MenuDefinition, allergySet: Set<string>) {
   const ingredientConflict = getAllMenuIngredients(menu).some((item) => allergySet.has(item));
   const substituteConflict = Object.values(menu.substitutes)
@@ -149,63 +189,161 @@ function hasAllergyConflict(menu: MenuDefinition, allergySet: Set<string>) {
   return ingredientConflict || substituteConflict;
 }
 
+interface CandidateScoreBreakdown {
+  total: number;
+  ingredientUtilizationScore: number;
+  ingredientCoverageScore: number;
+  lowMissingIngredientScore: number;
+  diversityScore: number;
+}
+
+function getMenuAgeRange(menu: MenuDefinition) {
+  return {
+    minAgeMonths: menu.minAgeMonths ?? 10,
+    maxAgeMonths: menu.maxAgeMonths ?? 36
+  };
+}
+
+function getAgeRangeScore(menu: MenuDefinition, ageMonths: number) {
+  const { minAgeMonths, maxAgeMonths } = getMenuAgeRange(menu);
+
+  if (ageMonths < minAgeMonths) {
+    return Math.max(-2.2, (ageMonths - minAgeMonths) * 0.25);
+  }
+
+  if (ageMonths > maxAgeMonths) {
+    return Math.max(-2.2, (maxAgeMonths - ageMonths) * 0.18);
+  }
+
+  return 1.1;
+}
+
+function getIngredientCoverageScore(menu: MenuDefinition, availableIngredients: string[]) {
+  const targetIngredients = uniqueIngredients([
+    ...menu.primaryIngredients,
+    ...menu.optionalIngredients
+  ]);
+
+  if (targetIngredients.length === 0) {
+    return 0;
+  }
+
+  const matchedCount = targetIngredients.filter((item) => availableIngredients.includes(item)).length;
+  return toRoundedScore(matchedCount / targetIngredients.length);
+}
+
+function getIngredientUtilizationScore(menu: MenuDefinition, inputIngredients: string[]) {
+  if (inputIngredients.length === 0) {
+    return 0;
+  }
+
+  const menuIngredients = new Set(getAllMenuIngredients(menu));
+  const usedInputCount = inputIngredients.filter((item) => menuIngredients.has(item)).length;
+  return toRoundedScore(usedInputCount / inputIngredients.length);
+}
+
+function getLowMissingIngredientScore(menu: MenuDefinition, availableIngredients: string[]) {
+  const baseMissingIngredients = uniqueIngredients([
+    ...menu.primaryIngredients.filter((item) => !availableIngredients.includes(item)),
+    ...menu.defaultMissingIngredients.filter((item) => !availableIngredients.includes(item))
+  ]);
+  const effectiveMissingCount = baseMissingIngredients.length;
+
+  return toRoundedScore(1 / (1 + effectiveMissingCount));
+}
+
+function getDiversityScore(
+  menu: MenuDefinition,
+  seenFamilies: Set<string>,
+  seenProteins: Set<string>
+) {
+  const family = menu.menuFamily ?? menu.cookingStyle;
+  let score = 1;
+
+  if (seenFamilies.has(family)) {
+    score -= 0.45;
+  }
+
+  if (menu.mainProtein !== "채소" && seenProteins.has(menu.mainProtein)) {
+    score -= 0.35;
+  }
+
+  return toRoundedScore(score);
+}
+
 function scoreMenu(
   menu: MenuDefinition,
   mealType: MealType,
-  safeIngredients: string[],
+  inputIngredients: string[],
+  availableIngredients: string[],
   ageMonths: number,
-  seenStyles: Set<string>,
+  seenFamilies: Set<string>,
   seenProteins: Set<string>
-) {
-  const primaryMatches = menu.primaryIngredients.filter((item) => safeIngredients.includes(item));
-  const optionalMatches = menu.optionalIngredients.filter((item) => safeIngredients.includes(item));
-  const pantryMatches = menu.pantryIngredients.filter((item) => safeIngredients.includes(item));
-  const stylePenalty = seenStyles.has(menu.cookingStyle) ? 1.4 : 0;
-  const proteinPenalty =
-    menu.mainProtein !== "채소" && seenProteins.has(menu.mainProtein) ? 1.1 : 0;
+): CandidateScoreBreakdown {
+  const ingredientUtilizationScore = getIngredientUtilizationScore(menu, inputIngredients);
+  const ingredientCoverageScore = getIngredientCoverageScore(menu, availableIngredients);
+  const lowMissingIngredientScore = getLowMissingIngredientScore(menu, availableIngredients);
+  const diversityScore = getDiversityScore(menu, seenFamilies, seenProteins);
   const exactMealBonus = menu.mealTypes.includes(mealType) ? 0.5 : 0;
   const ageAdjustment = getAgeStyleAdjustment(menu, ageMonths);
+  const ageRangeScore = getAgeRangeScore(menu, ageMonths);
 
-  return (
-    primaryMatches.length * 3 +
-    optionalMatches.length * 1.4 +
-    pantryMatches.length +
-    exactMealBonus -
-    stylePenalty -
-    proteinPenalty +
-    ageAdjustment
-  );
+  const total =
+    ingredientUtilizationScore * 4.4 +
+    ingredientCoverageScore * 3.8 +
+    lowMissingIngredientScore * 2.6 +
+    diversityScore * 2 +
+    exactMealBonus +
+    ageAdjustment +
+    ageRangeScore;
+
+  return {
+    total,
+    ingredientUtilizationScore,
+    ingredientCoverageScore,
+    lowMissingIngredientScore,
+    diversityScore
+  };
 }
 
 function buildFallbackRecommendation(
   mealType: MealType,
   ageMonths: number,
-  safeIngredients: string[],
-  excludedAllergyIngredients: string[]
+  mealContext: MealGenerationContext
 ) {
-  const primary = safeIngredients[0] ?? "채소";
-  const secondary = safeIngredients[1] ?? (mealType === "breakfast" ? "쌀" : "감자");
+  const primary = mealContext.availableIngredients[0] ?? "채소";
+  const secondary =
+    mealContext.availableIngredients[1] ?? (mealType === "breakfast" ? "쌀" : "감자");
   const cookingStyle = getFallbackCookingStyle(mealType, ageMonths);
-  const missingIngredients = getFallbackMissingIngredients(cookingStyle);
+  const missingIngredients = getFallbackMissingIngredients(cookingStyle).filter(
+    (ingredient) => !mealContext.availableIngredients.includes(ingredient)
+  );
   const narrative = generateMealNarrative({
     mealType,
     ageMonths,
     menuName: `${primary} ${secondary} ${cookingStyle}`,
     cookingStyle,
-    usedIngredients: safeIngredients,
+    usedIngredients: mealContext.availableIngredients,
     missingIngredients,
     recipeSummary: [
-      `${formatIngredientList(safeIngredients) || "준비한 재료"}를 아이가 먹기 좋게 잘게 다집니다.`,
+      `${formatIngredientList(mealContext.availableIngredients) || "준비한 재료"}를 아이가 먹기 좋게 잘게 다집니다.`,
       "주재료를 충분히 익힌 뒤 필요한 곡물 또는 대체 재료를 넣고 질감을 맞춥니다.",
       "마지막에 한 번 더 으깨거나 잘게 섞어 부드럽게 마무리합니다."
     ],
     caution: "처음 먹이는 재료가 있다면 소량부터 시작해 아이 반응을 확인해 주세요."
   });
-  const metrics = getMealMetricsByType(mealType);
-
+  const nutrition = applyNutritionEstimateToRecommendation({
+    mealType,
+    ageMonths,
+    menuFamily: cookingStyle,
+    usedIngredients: mealContext.availableIngredients,
+    missingIngredients,
+    optionalAddedIngredients: mealContext.optionalAddedIngredients
+  });
   return {
     id: `fallback-${mealType}`,
     name: `${primary} ${secondary} ${cookingStyle}`,
+    menuFamily: cookingStyle,
     cookingStyle,
     mainProtein: "맞춤형",
     description: `${MEAL_LABELS[mealType]} 입력 재료를 바탕으로 구성한 기본 대체 메뉴`,
@@ -213,19 +351,25 @@ function buildFallbackRecommendation(
     caution: narrative.caution,
     recommendationText: narrative.recommendationText,
     recipeSummary: narrative.recipeSummary,
+    recipeFull: narrative.recipeFull,
     missingIngredientExplanation: narrative.missingIngredientExplanation,
-    usedIngredients: safeIngredients,
+    usedIngredients: mealContext.availableIngredients,
     missingIngredients,
+    optionalAddedIngredients: mealContext.optionalAddedIngredients,
     substitutes: Object.fromEntries(
       missingIngredients.map((ingredient) => [ingredient, DEFAULT_SUBSTITUTES[ingredient] ?? []])
     ),
-    excludedAllergyIngredients,
+    excludedAllergyIngredients: mealContext.excludedAllergyIngredients,
     alternatives: [] as string[],
-    inputIngredients: safeIngredients,
-    allIngredients: safeIngredients,
-    calories: metrics.calories,
-    protein: metrics.protein,
-    cookTimeMinutes: metrics.cookTimeMinutes,
+    inputIngredients: mealContext.inputIngredients,
+    allIngredients: mealContext.availableIngredients,
+    scoringMetadata: buildScoringMetadata(
+      mealContext.inputIngredients,
+      mealContext.inputIngredients,
+      true
+    ),
+    inputStrength: mealContext.inputStrength,
+    ...nutrition,
     promptVersion: narrative.promptVersion,
     isFallback: true
   } satisfies MealRecommendation;
@@ -235,18 +379,21 @@ function buildRecommendation(
   menu: MenuDefinition,
   mealType: MealType,
   ageMonths: number,
-  safeIngredients: string[],
+  mealContext: MealGenerationContext,
   allergySet: Set<string>,
-  excludedAllergyIngredients: string[]
+  scoreBreakdown?: Partial<CandidateScoreBreakdown>
 ) {
   const allIngredients = getAllMenuIngredients(menu);
   const usedIngredients = uniqueIngredients(
-    allIngredients.filter((ingredient) => safeIngredients.includes(ingredient))
+    allIngredients.filter((ingredient) => mealContext.availableIngredients.includes(ingredient))
+  );
+  const usedInputIngredients = uniqueIngredients(
+    allIngredients.filter((ingredient) => mealContext.inputIngredients.includes(ingredient))
   );
   const missingIngredients = uniqueIngredients(
     [
-      ...menu.defaultMissingIngredients.filter((item) => !safeIngredients.includes(item)),
-      ...menu.primaryIngredients.filter((item) => !safeIngredients.includes(item))
+      ...menu.defaultMissingIngredients.filter((item) => !mealContext.availableIngredients.includes(item)),
+      ...menu.primaryIngredients.filter((item) => !mealContext.availableIngredients.includes(item))
     ].filter((item) => !allergySet.has(item))
   );
   const substitutes = Object.fromEntries(
@@ -279,10 +426,23 @@ function buildRecommendation(
     caution: menu.caution,
     allergies: [...allergySet]
   });
+  const optionalAddedIngredients = mealContext.optionalAddedIngredients.filter(
+    (ingredient) => usedIngredients.includes(ingredient) && !missingIngredients.includes(ingredient)
+  );
+  const nutrition = applyNutritionEstimateToRecommendation({
+    mealType,
+    ageMonths,
+    menuFamily: menu.menuFamily ?? menu.cookingStyle,
+    menu,
+    usedIngredients,
+    missingIngredients,
+    optionalAddedIngredients
+  });
 
   return {
     id: menu.id,
     name: menu.name,
+    menuFamily: menu.menuFamily ?? menu.cookingStyle,
     cookingStyle: menu.cookingStyle,
     mainProtein: menu.mainProtein,
     description: menu.description,
@@ -290,17 +450,27 @@ function buildRecommendation(
     caution: guardedNarrative.caution,
     recommendationText: guardedNarrative.recommendationText,
     recipeSummary: guardedNarrative.recipeSummary,
+    recipeFull:
+      guardedNarrative.recipeFull.length > 0
+        ? guardedNarrative.recipeFull
+        : menu.recipeFull?.slice(0, 8) ?? menu.recipeSummary,
     missingIngredientExplanation: guardedNarrative.missingIngredientExplanation,
     usedIngredients,
     missingIngredients,
+    optionalAddedIngredients,
     substitutes,
-    excludedAllergyIngredients,
+    excludedAllergyIngredients: mealContext.excludedAllergyIngredients,
     alternatives: [] as string[],
-    inputIngredients: safeIngredients,
+    inputIngredients: mealContext.inputIngredients,
     allIngredients,
-    calories: menu.calories,
-    protein: menu.protein,
-    cookTimeMinutes: menu.cookTimeMinutes,
+    scoringMetadata: buildScoringMetadata(
+      usedInputIngredients,
+      mealContext.inputIngredients,
+      false,
+      scoreBreakdown
+    ),
+    inputStrength: mealContext.inputStrength,
+    ...nutrition,
     promptVersion: guardedNarrative.promptVersion,
     isFallback: guardedNarrative.isFallback
   } satisfies MealRecommendation;
@@ -309,28 +479,39 @@ function buildRecommendation(
 function getMealCandidates(
   mealType: MealType,
   ageMonths: number,
-  safeIngredients: string[],
+  mealContext: MealGenerationContext,
   allergySet: Set<string>,
-  excludedAllergyIngredients: string[],
   menuCatalog: MenuDefinition[],
-  seenStyles: Set<string>,
+  seenFamilies: Set<string>,
   seenProteins: Set<string>
 ) {
   return menuCatalog
     .filter((menu) => menu.mealTypes.includes(mealType))
     .filter((menu) => !hasAllergyConflict(menu, allergySet))
-    .map((menu) => ({
-      recommendation: buildRecommendation(
+    .map((menu) => {
+      const scoreBreakdown = scoreMenu(
         menu,
         mealType,
+        mealContext.inputIngredients,
+        mealContext.availableIngredients,
         ageMonths,
-        safeIngredients,
-        allergySet,
-        excludedAllergyIngredients
-      ),
-      score: scoreMenu(menu, mealType, safeIngredients, ageMonths, seenStyles, seenProteins)
-    }))
-    .filter((candidate) => candidate.score > 0)
+        seenFamilies,
+        seenProteins
+      );
+
+      return {
+        recommendation: buildRecommendation(
+          menu,
+          mealType,
+          ageMonths,
+          mealContext,
+          allergySet,
+          scoreBreakdown
+        ),
+        score: scoreBreakdown.total
+      };
+    })
+    .filter((candidate) => candidate.score > 0.25)
     .sort((left, right) => right.score - left.score)
     .map((candidate) => candidate.recommendation);
 }
@@ -338,7 +519,7 @@ function getMealCandidates(
 export function buildDailyMealPlanWithCandidates(
   input: BuildDailyMealPlanInput
 ): DailyMealPlanWithCandidates {
-  const seenStyles = new Set<string>();
+  const seenFamilies = new Set<string>();
   const seenProteins = new Set<string>();
   const ageMonths = getAgeMonths(input.child);
   const allergies = uniqueIngredients(input.child.allergies);
@@ -347,6 +528,8 @@ export function buildDailyMealPlanWithCandidates(
   const results = {} as Record<MealType, MealRecommendation>;
   const candidatesByMealType = {} as Record<MealType, MealRecommendation[]>;
   const menuCatalog = input.menuCatalog ?? MENU_CATALOG;
+  const generationMode = deriveGenerationMode(input.mealInputs, input.generationMode);
+  const allowAutoSupplement = input.allowAutoSupplement ?? true;
 
   if (ageMonths < 10 || ageMonths > 18) {
     notices.push({
@@ -357,40 +540,54 @@ export function buildDailyMealPlanWithCandidates(
 
   MEAL_TYPES.forEach((mealType) => {
     const normalizedInputs = uniqueIngredients(input.mealInputs[mealType].map(normalizeIngredient));
-    const excludedAllergyIngredients = getIngredientConflicts(normalizedInputs, allergies);
-    const safeIngredients = normalizedInputs.filter(
-      (ingredient) => !excludedAllergyIngredients.includes(ingredient)
-    );
+    const mealContext = prepareMealGenerationContext({
+      mealType,
+      ageMonths,
+      inputIngredients: normalizedInputs,
+      allergies,
+      allowAutoSupplement
+    });
 
-    if (excludedAllergyIngredients.length > 0) {
+    if (mealContext.excludedAllergyIngredients.length > 0) {
       notices.push({
         tone: "danger",
-        message: `${MEAL_LABELS[mealType]} 입력에서 알레르기 재료 ${formatIngredientList(excludedAllergyIngredients)}를 제외했어요.`
+        message: `${MEAL_LABELS[mealType]} 입력에서 알레르기 재료 ${formatIngredientList(mealContext.excludedAllergyIngredients)}를 제외했어요.`
+      });
+    }
+
+    if (mealContext.excludedSupplementIngredients.length > 0) {
+      notices.push({
+        tone: "warning",
+        message: `${MEAL_LABELS[mealType]} 자동 보완 후보에서 알레르기 재료 ${formatIngredientList(mealContext.excludedSupplementIngredients)}를 제외했어요.`
+      });
+    }
+
+    if (mealContext.inputIngredients.length === 0 && mealContext.optionalAddedIngredients.length > 0) {
+      notices.push({
+        tone: "warning",
+        message: `${MEAL_LABELS[mealType]} 입력이 없어 ${formatIngredientList(mealContext.optionalAddedIngredients)}를 바탕으로 자동 추천했어요.`
+      });
+    } else if (mealContext.optionalAddedIngredients.length > 0) {
+      notices.push({
+        tone: "warning",
+        message: `${MEAL_LABELS[mealType]} 입력이 적어 ${formatIngredientList(mealContext.optionalAddedIngredients)}를 함께 고려했어요.`
       });
     }
 
     const candidates = getMealCandidates(
       mealType,
       ageMonths,
-      safeIngredients,
+      mealContext,
       allergySet,
-      excludedAllergyIngredients,
       menuCatalog,
-      seenStyles,
+      seenFamilies,
       seenProteins
     );
     candidatesByMealType[mealType] = candidates;
 
     const selectedCandidate =
-      candidates.find(
-        (candidate) =>
-          !seenStyles.has(candidate.cookingStyle) &&
-          (candidate.mainProtein === "채소" || !seenProteins.has(candidate.mainProtein))
-      ) ??
-      candidates.find(
-        (candidate) => candidate.mainProtein === "채소" || !seenProteins.has(candidate.mainProtein)
-      ) ??
-      buildFallbackRecommendation(mealType, ageMonths, safeIngredients, excludedAllergyIngredients);
+      candidates[0] ??
+      buildFallbackRecommendation(mealType, ageMonths, mealContext);
 
     selectedCandidate.alternatives = candidates
       .filter((candidate) => candidate.name !== selectedCandidate.name)
@@ -398,7 +595,7 @@ export function buildDailyMealPlanWithCandidates(
       .map((candidate) => candidate.name);
 
     results[mealType] = selectedCandidate;
-    seenStyles.add(selectedCandidate.cookingStyle);
+    seenFamilies.add(selectedCandidate.menuFamily ?? selectedCandidate.cookingStyle);
 
     if (selectedCandidate.mainProtein !== "채소" && selectedCandidate.mainProtein !== "맞춤형") {
       seenProteins.add(selectedCandidate.mainProtein);
@@ -417,6 +614,8 @@ export function buildDailyMealPlanWithCandidates(
       id: createId("meal_plan"),
       childId: input.child.id,
       childName: input.child.name,
+      generationMode,
+      allowAutoSupplement,
       createdAt: new Date().toISOString(),
       mealInputs: input.mealInputs,
       notices,
@@ -429,6 +628,8 @@ export function buildDailyMealPlanWithCandidates(
 export function buildDailyMealPlan(input: {
   child: ChildProfile;
   mealInputs: Record<MealType, string[]>;
+  generationMode?: GenerationMode;
+  allowAutoSupplement?: boolean;
   menuCatalog?: MenuDefinition[];
 }): DailyMealPlan {
   return buildDailyMealPlanWithCandidates(input).plan;

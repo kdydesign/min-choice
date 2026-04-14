@@ -41,6 +41,15 @@ export function MealResultCard({
 }: MealResultCardProps) {
   const meta = MEAL_META[mealType];
   const detailId = `meal-result-detail-${mealType}`;
+  const statusBadges = [
+    meal.isFallback ? { label: "기본 추천", tone: "warning" as const } : null,
+    meal.inputStrength === "none"
+      ? { label: "자동 추천", tone: "neutral" as const }
+      : meal.optionalAddedIngredients.length > 0
+        ? { label: "자동 보완", tone: "neutral" as const }
+        : null
+  ].filter(Boolean) as Array<{ label: string; tone: "warning" | "neutral" }>;
+  const recipeSummary = meal.recipeSummary.slice(0, 3);
 
   return (
     <article
@@ -56,21 +65,45 @@ export function MealResultCard({
       <div className="meal-result-card-body">
         <div className="meal-result-card-copy">
           <h3 style={{ color: meta.color }}>{meal.name}</h3>
+          {statusBadges.length > 0 ? (
+            <div className="meal-result-badge-row">
+              {statusBadges.map((badge) => (
+                <span
+                  key={`${mealType}-${badge.label}`}
+                  className={`meal-result-badge is-${badge.tone}`}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <p className="meal-result-description">
             {meal.recommendationText || meal.description}
           </p>
         </div>
 
-        <div className="meal-result-chip-row">
-          {meal.inputIngredients.map((ingredient) => (
-            <span
-              key={`${mealType}-${ingredient}`}
-              className="meal-result-ingredient-chip"
-              style={{ backgroundColor: meta.chipBackground }}
-            >
-              {ingredient}
-            </span>
-          ))}
+        <div className="meal-result-ingredient-section">
+          <span className="meal-result-section-label">사용 재료</span>
+          <div className="meal-result-chip-row">
+            {meal.usedIngredients.map((ingredient) => (
+              <span
+                key={`${mealType}-${ingredient}`}
+                className="meal-result-ingredient-chip"
+                style={{ backgroundColor: meta.chipBackground }}
+              >
+                {ingredient}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="meal-result-summary-card">
+          <h4>조리법 3줄</h4>
+          <ol className="meal-result-summary-list">
+            {recipeSummary.map((step) => (
+              <li key={`${mealType}-summary-${step}`}>{step}</li>
+            ))}
+          </ol>
         </div>
 
         <div className="meal-result-stats">
@@ -78,19 +111,28 @@ export function MealResultCard({
             <span className="meal-result-stat-icon calories" aria-hidden="true">
               <AppIcon name="calories" size={16} />
             </span>
-            <span>{meal.calories}kcal</span>
+            <span className="meal-result-stat-copy">
+              <small>칼로리</small>
+              <strong>약 {meal.nutritionEstimate.caloriesKcal}kcal</strong>
+            </span>
           </span>
           <span className="meal-result-stat">
             <span className="meal-result-stat-icon protein" aria-hidden="true">
               <AppIcon name="protein" size={16} />
             </span>
-            <span>단백질 {meal.protein}g</span>
+            <span className="meal-result-stat-copy">
+              <small>단백질</small>
+              <strong>약 {meal.nutritionEstimate.proteinG}g</strong>
+            </span>
           </span>
           <span className="meal-result-stat">
             <span className="meal-result-stat-icon cook-time" aria-hidden="true">
               <AppIcon name="cookTime" size={16} />
             </span>
-            <span>{meal.cookTimeMinutes}분</span>
+            <span className="meal-result-stat-copy">
+              <small>조리 시간</small>
+              <strong>약 {meal.nutritionEstimate.estimatedCookTimeMin}분</strong>
+            </span>
           </span>
         </div>
 

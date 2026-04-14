@@ -28,7 +28,76 @@ export const DEFAULT_MEAL_METRICS = {
   dinner: { calories: 220, protein: 10, cookTimeMinutes: 20 }
 } as const;
 
-export const MENU_CATALOG: MenuDefinition[] = [
+export function inferMenuFamily(cookingStyle: string) {
+  switch (cookingStyle) {
+    case "죽":
+      return "porridge";
+    case "리조또":
+      return "risotto";
+    case "덮밥":
+      return "rice_bowl";
+    case "패티":
+      return "patty";
+    case "찜":
+      return "steamed";
+    case "스크램블":
+      return "omelet";
+    case "볶음밥":
+      return "soft_stir";
+    case "무른밥":
+      return "soft_stir";
+    case "매시":
+      return "mash";
+    case "핑거푸드":
+      return "finger_food";
+    case "스튜":
+      return "stew";
+    default:
+      return "soft_stir";
+  }
+}
+
+function getDefaultAgeRange(menuFamily: string) {
+  switch (menuFamily) {
+    case "porridge":
+      return { minAgeMonths: 6, maxAgeMonths: 18 };
+    case "mash":
+      return { minAgeMonths: 7, maxAgeMonths: 16 };
+    case "risotto":
+      return { minAgeMonths: 9, maxAgeMonths: 28 };
+    case "rice_bowl":
+      return { minAgeMonths: 14, maxAgeMonths: 48 };
+    case "patty":
+      return { minAgeMonths: 18, maxAgeMonths: 48 };
+    case "steamed":
+      return { minAgeMonths: 12, maxAgeMonths: 42 };
+    case "omelet":
+      return { minAgeMonths: 14, maxAgeMonths: 48 };
+    case "soft_stir":
+      return { minAgeMonths: 12, maxAgeMonths: 48 };
+    case "finger_food":
+      return { minAgeMonths: 18, maxAgeMonths: 48 };
+    case "stew":
+      return { minAgeMonths: 12, maxAgeMonths: 36 };
+    default:
+      return { minAgeMonths: 10, maxAgeMonths: 36 };
+  }
+}
+
+function withMenuSeedDefaults(menu: MenuDefinition): MenuDefinition {
+  const menuFamily = menu.menuFamily ?? inferMenuFamily(menu.cookingStyle);
+  const ageRange = getDefaultAgeRange(menuFamily);
+
+  return {
+    ...menu,
+    menuFamily,
+    minAgeMonths: menu.minAgeMonths ?? ageRange.minAgeMonths,
+    maxAgeMonths: menu.maxAgeMonths ?? ageRange.maxAgeMonths,
+    recipeFull: menu.recipeFull ?? menu.recipeSummary
+  };
+}
+
+const RAW_MENU_CATALOG: MenuDefinition[] = [
   {
     id: "beef-zucchini-porridge",
     name: "소고기 애호박 죽",
@@ -388,8 +457,85 @@ export const MENU_CATALOG: MenuDefinition[] = [
       "밥이나 쌀과 함께 넣고 묽게 끓입니다.",
       "촉촉한 리조또 질감이 되면 식혀 제공합니다."
     ]
+  },
+  {
+    id: "beef-zucchini-steamed",
+    name: "소고기 애호박 찜",
+    menuFamily: "steamed",
+    mealTypes: ["lunch", "dinner"],
+    primaryIngredients: ["소고기", "애호박"],
+    optionalIngredients: ["감자"],
+    pantryIngredients: [],
+    hiddenIngredients: ["물"],
+    defaultMissingIngredients: [],
+    substitutes: {},
+    cookingStyle: "찜",
+    mainProtein: "소고기",
+    description: "소고기와 애호박을 부드럽게 익혀 반찬처럼 곁들이기 좋은 메뉴",
+    textureNote: "너무 마르지 않게 수분을 남기고, 아이가 집기 쉬운 부드러운 크기로 정리해 주세요.",
+    caution: "소고기는 질기지 않게 잘게 다지고, 애호박은 껍질 없이 충분히 익혀 주세요.",
+    calories: 205,
+    protein: 12,
+    cookTimeMinutes: 17,
+    recipeSummary: [
+      "소고기와 애호박, 감자가 있다면 함께 잘게 준비합니다.",
+      "찜기에 넣거나 약한 불로 수분을 더해 촉촉하게 익힙니다.",
+      "아이가 먹기 좋은 크기로 부드럽게 정리해 제공합니다."
+    ]
+  },
+  {
+    id: "chicken-sweetpotato-patty",
+    name: "닭고기 고구마 패티",
+    menuFamily: "patty",
+    mealTypes: ["lunch", "dinner"],
+    primaryIngredients: ["닭고기", "고구마"],
+    optionalIngredients: ["양배추"],
+    pantryIngredients: [],
+    hiddenIngredients: ["올리브유"],
+    defaultMissingIngredients: [],
+    substitutes: {},
+    cookingStyle: "패티",
+    mainProtein: "닭고기",
+    description: "닭고기와 고구마를 동그랗게 빚어 큰 아이도 즐기기 쉬운 메뉴",
+    textureNote: "겉면만 딱딱해지지 않게 약한 불에서 천천히 익혀 주세요.",
+    caution: "아이 월령에 맞춰 너무 두껍지 않게 만들고, 한입 크기로 잘라 주세요.",
+    calories: 215,
+    protein: 13,
+    cookTimeMinutes: 18,
+    recipeSummary: [
+      "닭고기를 잘게 다지고 고구마는 부드럽게 익혀 으깹니다.",
+      "재료를 섞어 작은 패티 모양으로 빚어 약한 불에서 익힙니다.",
+      "충분히 익으면 아이가 집기 좋은 크기로 잘라 제공합니다."
+    ]
+  },
+  {
+    id: "broccoli-tofu-finger-food",
+    name: "브로콜리 두부 핑거푸드",
+    menuFamily: "finger_food",
+    mealTypes: ["breakfast", "lunch", "dinner"],
+    primaryIngredients: ["브로콜리", "두부"],
+    optionalIngredients: ["당근"],
+    pantryIngredients: [],
+    hiddenIngredients: ["올리브유"],
+    defaultMissingIngredients: [],
+    substitutes: {},
+    cookingStyle: "핑거푸드",
+    mainProtein: "두부",
+    description: "브로콜리와 두부를 부드럽게 뭉쳐 스스로 집어 먹기 연습하기 좋은 메뉴",
+    textureNote: "쉽게 부서지지 않으면서도 씹기 편한 촉촉한 질감을 유지해 주세요.",
+    caution: "처음에는 작은 조각으로 나눠 아이가 급하게 먹지 않도록 지켜봐 주세요.",
+    calories: 175,
+    protein: 9,
+    cookTimeMinutes: 14,
+    recipeSummary: [
+      "브로콜리와 당근을 푹 익혀 잘게 다지고 두부는 수분을 정리합니다.",
+      "재료를 섞어 작은 한입 크기로 모양을 만든 뒤 살짝 익힙니다.",
+      "손으로 집기 쉬운 크기로 식혀 제공합니다."
+    ]
   }
 ];
+
+export const MENU_CATALOG: MenuDefinition[] = RAW_MENU_CATALOG.map(withMenuSeedDefaults);
 
 export function getMealMetricsByType(mealType: keyof typeof DEFAULT_MEAL_METRICS) {
   return DEFAULT_MEAL_METRICS[mealType];

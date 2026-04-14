@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizeIngredient, uniqueIngredients } from "../../../src/features/ingredients/lib/ingredient-utils.ts";
 import {
   DEFAULT_SUBSTITUTES,
+  inferMenuFamily,
   MENU_CATALOG
 } from "../../../src/features/menus/data/menu-catalog.ts";
 import type { MealType, MenuDefinition } from "../../../src/types/domain.ts";
@@ -130,9 +131,12 @@ function mapMenuRow(row: MenuRow): MenuDefinition | null {
     return null;
   }
 
+  const menuFamily = inferMenuFamily(row.cooking_style?.trim() || "추천");
+
   return {
     id: sourceKey,
     name,
+    menuFamily,
     mealTypes: parseMealTypes(row.meal_types_json),
     primaryIngredients: uniqueIngredients(parseStringArray(row.required_ingredient_keys_json)),
     optionalIngredients: uniqueIngredients(parseStringArray(row.optional_ingredient_keys_json)),
@@ -148,9 +152,12 @@ function mapMenuRow(row: MenuRow): MenuDefinition | null {
     calories: Number.isFinite(row.estimated_calories_kcal) ? Number(row.estimated_calories_kcal) : 180,
     protein: Number.isFinite(row.protein_grams) ? Number(row.protein_grams) : 8,
     cookTimeMinutes: Number.isFinite(row.cook_time_minutes) ? Number(row.cook_time_minutes) : 15,
+    minAgeMonths: null,
+    maxAgeMonths: null,
     textureNote: row.texture_note?.trim() || "아이가 먹기 좋은 질감으로 조절해 주세요.",
     caution: row.caution_template?.trim() || "",
-    recipeSummary: parseStringArray(row.recipe_template_json).slice(0, 3)
+    recipeSummary: parseStringArray(row.recipe_template_json).slice(0, 3),
+    recipeFull: parseStringArray(row.recipe_template_json).slice(0, 8)
   };
 }
 

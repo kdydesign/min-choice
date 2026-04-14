@@ -4,6 +4,11 @@ import { getSupabaseClient } from "../../../lib/supabase";
 import { removeValue, readJson, writeJson } from "../../../services/storage/browser-storage";
 import { getSelectedChildId, setSelectedChildId } from "../../../services/storage/preferences-storage";
 import { MEAL_TYPES, type ChildProfile, type DailyMealPlan, type MealDraft, type MealType } from "../../../types/domain";
+import {
+  buildMealInputRows,
+  buildMealPlanItemRows,
+  getMealPlanDateOnly
+} from "../../meal-plans/lib/meal-plan-persistence";
 
 const LEGACY_CHILDREN_STORAGE_KEY = "min-baby-meals.profiles";
 const LEGACY_MEAL_PLANS_STORAGE_KEY = "min-baby-meals.meal-plans";
@@ -27,10 +32,6 @@ interface MealPlanRow {
 let ensureSessionPromise: Promise<Session | null> | null = null;
 let bootstrapPromise: Promise<void> | null = null;
 let hasBootstrappedPersistence = false;
-
-function getDateOnly(value: string) {
-  return new Date(value).toISOString().slice(0, 10);
-}
 
 function sortDraftEntries(entries: Array<[string, MealDraft]>) {
   return [...entries].sort((left, right) => {
@@ -157,11 +158,12 @@ async function migrateLocalDataToSupabase(userId: string) {
       .from("meal_plans")
       .insert({
         child_id: nextChildId,
-        plan_date: getDateOnly(plan.createdAt),
+        plan_date: getMealPlanDateOnly(plan.createdAt),
         created_by_user_id: userId,
         created_at: plan.createdAt,
         updated_at: plan.createdAt,
         notices_json: plan.notices
+        // TODO: persist generation_mode / allow_auto_supplement after migration apply
       })
       .select("id")
       .single<{ id: string }>();
@@ -170,24 +172,10 @@ async function migrateLocalDataToSupabase(userId: string) {
       throw insertPlanError;
     }
 
-    const mealPlanItems = MEAL_TYPES.map((mealType) => ({
-      meal_plan_id: insertedPlan.id,
-      meal_type: mealType,
-      menu_id: null,
-      menu_name: plan.results[mealType].name,
-      used_ingredient_keys_json: plan.results[mealType].usedIngredients,
-      missing_ingredient_keys_json: plan.results[mealType].missingIngredients,
-      substitutes_json: plan.results[mealType].substitutes,
-      ai_recommendation: plan.results[mealType].recommendationText,
-      recipe_summary_json: plan.results[mealType].recipeSummary,
-      recipe_full_json: plan.results[mealType].recipeSummary,
-      caution: plan.results[mealType].caution,
-      excluded_allergy_ingredients_json: plan.results[mealType].excludedAllergyIngredients,
-      prompt_version: plan.results[mealType].promptVersion,
-      is_fallback: plan.results[mealType].isFallback,
-      result_payload_json: plan.results[mealType],
-      created_at: plan.createdAt
-    }));
+    const mealPlanItems = buildMealPlanItemRows({
+      mealPlanId: insertedPlan.id,
+      plan
+    });
 
     const { error: insertItemError } = await supabase.from("meal_plan_items").insert(mealPlanItems);
 
@@ -196,16 +184,13 @@ async function migrateLocalDataToSupabase(userId: string) {
       throw insertItemError;
     }
 
-    const mealInputs = MEAL_TYPES.map((mealType) => ({
-      meal_plan_id: insertedPlan.id,
-      child_id: nextChildId,
-      input_date: getDateOnly(plan.createdAt),
-      meal_type: mealType,
-      original_ingredients_json: plan.mealInputs[mealType],
-      normalized_ingredients_json: plan.mealInputs[mealType],
-      excluded_allergy_ingredients_json: plan.results[mealType].excludedAllergyIngredients,
-      created_at: plan.createdAt
-    }));
+    const mealInputs = buildMealInputRows({
+      mealPlanId: insertedPlan.id,
+      childId: nextChildId,
+      createdAt: plan.createdAt,
+      plan,
+      sourceMealInputs: plan.mealInputs
+    });
 
     const { error: insertInputError } = await supabase.from("meal_inputs").insert(mealInputs);
 

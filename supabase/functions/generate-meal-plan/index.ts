@@ -13,39 +13,27 @@ import {
   MEAL_TYPES,
   type ChildProfile,
   type MealRecommendation,
-  type MealType
+  type MealType,
+  type MenuDefinition
 } from "../../../src/types/domain.ts";
-
-interface GenerateMealPlanRequest {
-  child: ChildProfile;
-  mealInputs: Record<MealType, string[]>;
-}
+import type {
+  AiMealResponse,
+  AiSubstituteItem,
+  GenerateMealPlanPayload
+} from "../../../src/features/meal-plans/types/generation-contract.ts";
 
 interface OpenAiConfig {
   apiKey: string;
   model: string;
 }
 
-interface AiSubstituteItem {
-  ingredient: string;
-  substitutes: string[];
-}
-
-interface AiMealResponse {
-  selectedMenu: string;
-  recommendation: string;
-  missingIngredients: string[];
-  missingIngredientExplanation: string;
-  substitutes: AiSubstituteItem[];
-  recipe: string[];
-  caution: string;
-  calories: number;
-  protein: number;
-  cookTimeMinutes: number;
-}
-
 interface NormalizedAiMealResponse extends Omit<AiMealResponse, "substitutes"> {
   substitutes: Record<string, string[]>;
+  recipeSummary: string[];
+  recipeFull: string[];
+  textureGuide: string;
+  optionalAddedIngredients: string[];
+  menuFamily: string | null;
 }
 
 interface AiGenerationOutcome {
@@ -59,7 +47,7 @@ interface AiGenerationOutcome {
 class RequestValidationError extends Error {}
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const AI_PROMPT_VERSION = "openai-meal-copy-v1";
+const AI_PROMPT_VERSION = "openai-meal-copy-v3";
 const MAX_CANDIDATES = 3;
 const AI_RESPONSE_SCHEMA = {
   type: "object",
@@ -87,16 +75,25 @@ const AI_RESPONSE_SCHEMA = {
         required: ["ingredient", "substitutes"]
       }
     },
-    recipe: {
+    recipeSummary: {
       type: "array",
       minItems: 3,
       maxItems: 3,
       items: { type: "string" }
     },
+    recipeFull: {
+      type: "array",
+      minItems: 5,
+      maxItems: 8,
+      items: { type: "string" }
+    },
+    textureGuide: { type: "string" },
     caution: { type: "string" },
-    calories: { type: "number" },
-    protein: { type: "number" },
-    cookTimeMinutes: { type: "number" }
+    menuFamily: { type: ["string", "null"] },
+    optionalAddedIngredients: {
+      type: "array",
+      items: { type: "string" }
+    }
   },
   required: [
     "selectedMenu",
@@ -104,11 +101,12 @@ const AI_RESPONSE_SCHEMA = {
     "missingIngredients",
     "missingIngredientExplanation",
     "substitutes",
-    "recipe",
+    "recipeSummary",
+    "recipeFull",
+    "textureGuide",
     "caution",
-    "calories",
-    "protein",
-    "cookTimeMinutes"
+    "menuFamily",
+    "optionalAddedIngredients"
   ]
 } as const;
 
@@ -176,7 +174,7 @@ function parseAgeMonths(value: unknown, birthDate?: string) {
   return derivedAgeMonths;
 }
 
-function parseGenerateMealPlanRequest(value: unknown): GenerateMealPlanRequest {
+function parseGenerateMealPlanRequest(value: unknown): GenerateMealPlanPayload {
   if (!isRecord(value)) {
     throw new RequestValidationError("Request body must be an object");
   }
@@ -206,7 +204,12 @@ function parseGenerateMealPlanRequest(value: unknown): GenerateMealPlanRequest {
       breakfast: parseStringArrayField(value.mealInputs.breakfast, "mealInputs.breakfast"),
       lunch: parseStringArrayField(value.mealInputs.lunch, "mealInputs.lunch"),
       dinner: parseStringArrayField(value.mealInputs.dinner, "mealInputs.dinner")
-    }
+    },
+    generationMode:
+      value.generationMode === "ingredient_first" || value.generationMode === "auto_recommend"
+        ? value.generationMode
+        : undefined,
+    allowAutoSupplement: typeof value.allowAutoSupplement === "boolean" ? value.allowAutoSupplement : undefined
   };
 }
 
@@ -262,11 +265,12 @@ function isAiMealResponse(value: unknown): value is AiMealResponse {
     isStringArray(value.missingIngredients) &&
     typeof value.missingIngredientExplanation === "string" &&
     isAiSubstituteItems(value.substitutes) &&
-    isStringArray(value.recipe) &&
+    isStringArray(value.recipeSummary) &&
+    isStringArray(value.recipeFull) &&
+    typeof value.textureGuide === "string" &&
     typeof value.caution === "string" &&
-    typeof value.calories === "number" &&
-    typeof value.protein === "number" &&
-    typeof value.cookTimeMinutes === "number"
+    isStringArray(value.optionalAddedIngredients) &&
+    (value.menuFamily === null || typeof value.menuFamily === "string")
   );
 }
 
@@ -293,11 +297,12 @@ function normalizeAiMealResponse(response: AiMealResponse): NormalizedAiMealResp
     missingIngredients: uniqueIngredients(response.missingIngredients),
     missingIngredientExplanation: response.missingIngredientExplanation.trim(),
     substitutes: normalizeSubstituteItems(response.substitutes),
-    recipe: response.recipe.map((step) => step.trim()).filter(Boolean).slice(0, 3),
+    recipeSummary: response.recipeSummary.map((step) => step.trim()).filter(Boolean).slice(0, 3),
+    recipeFull: response.recipeFull.map((step) => step.trim()).filter(Boolean).slice(0, 8),
+    textureGuide: response.textureGuide.trim(),
     caution: response.caution.trim(),
-    calories: response.calories,
-    protein: response.protein,
-    cookTimeMinutes: response.cookTimeMinutes
+    menuFamily: typeof response.menuFamily === "string" ? response.menuFamily.trim() || null : null,
+    optionalAddedIngredients: uniqueIngredients(response.optionalAddedIngredients)
   };
 }
 
@@ -363,28 +368,27 @@ function validateAiStructuredFields(
     return false;
   }
 
-  if (
-    !Number.isFinite(response.calories) ||
-    !Number.isFinite(response.protein) ||
-    !Number.isFinite(response.cookTimeMinutes)
-  ) {
+  if ((response.menuFamily ?? null) !== (selectedResult.menuFamily ?? null)) {
     return false;
   }
 
-  if (
-    Math.round(response.calories) !== Math.round(selectedResult.calories) ||
-    Math.round(response.protein) !== Math.round(selectedResult.protein) ||
-    Math.round(response.cookTimeMinutes) !== Math.round(selectedResult.cookTimeMinutes)
-  ) {
+  if (response.recipeSummary.length !== 3 || response.recipeFull.length < 5 || response.recipeFull.length > 8) {
+    return false;
+  }
+
+  if (response.optionalAddedIngredients.length > 3) {
     return false;
   }
 
   const narrativeFields = [
     response.selectedMenu,
     response.recommendation,
+    response.textureGuide,
     response.missingIngredientExplanation,
     response.caution,
-    ...response.recipe,
+    ...response.recipeSummary,
+    ...response.recipeFull,
+    ...response.optionalAddedIngredients,
     ...Object.keys(response.substitutes),
     ...Object.values(response.substitutes).flat()
   ];
@@ -402,6 +406,22 @@ function validateAiStructuredFields(
       buildAllowedValueMap(substitutes)
     ] as const)
   );
+
+  const allowedOptionalIngredients = new Set(
+    selectedResult.optionalAddedIngredients.map((ingredient) => normalizeIngredient(ingredient))
+  );
+
+  if (
+    response.optionalAddedIngredients.some(
+      (ingredient) => !allowedOptionalIngredients.has(normalizeIngredient(ingredient))
+    )
+  ) {
+    return false;
+  }
+
+  if (!response.textureGuide.trim() || containsAllergyText(response.textureGuide, allergies) || containsDangerousText(response.textureGuide)) {
+    return false;
+  }
 
   return Object.entries(response.substitutes).every(([ingredient, substitutes]) => {
     const allowedValues = allowedSubstituteMap.get(normalizeIngredient(ingredient));
@@ -476,32 +496,63 @@ function buildAiRequestPayload(input: {
   normalizedInputIngredients: string[];
   selectedResult: MealRecommendation;
   candidates: MealRecommendation[];
+  dayContext: Array<{
+    mealType: MealType;
+    menu: string;
+    menuFamily: string | null;
+    mainProtein: string;
+    usedIngredients: string[];
+  }>;
+  menuCatalog: MenuDefinition[];
 }) {
+  const resolveMenu = (candidate: MealRecommendation) =>
+    input.menuCatalog.find((menu) => menu.id === candidate.id || menu.name === candidate.name) ?? null;
+
   return {
     promptVersion: AI_PROMPT_VERSION,
     child: {
-      ageMonths: input.child.ageMonths,
+      childAgeMonths: input.child.ageMonths,
       birthDate: input.child.birthDate,
       allergies: uniqueIngredients(input.child.allergies)
     },
     mealType: input.mealType,
+    allowAutoSupplement: input.selectedResult.optionalAddedIngredients.length > 0,
+    generationMode:
+      input.selectedResult.inputIngredients.length === 0 ? "auto_recommend" : "ingredient_first",
+    inputStrength: input.selectedResult.inputStrength,
     normalizedInputIngredients: input.normalizedInputIngredients,
+    userInputIngredients: input.selectedResult.inputIngredients,
+    optionalAddedIngredients: input.selectedResult.optionalAddedIngredients,
+    availableIngredients: uniqueIngredients([
+      ...input.selectedResult.inputIngredients,
+      ...input.selectedResult.optionalAddedIngredients
+    ]),
     selectedMenu: input.selectedResult.name,
-    expectedCalories: input.selectedResult.calories,
-    expectedProtein: input.selectedResult.protein,
-    expectedCookTimeMinutes: input.selectedResult.cookTimeMinutes,
     expectedMissingIngredients: input.selectedResult.missingIngredients,
     expectedSubstitutes: mapSubstitutesToItems(input.selectedResult.substitutes),
-    candidates: input.candidates.slice(0, MAX_CANDIDATES).map((candidate) => ({
-      name: candidate.name,
-      cookingStyle: candidate.cookingStyle,
-      mainProtein: candidate.mainProtein,
-      usedIngredients: candidate.usedIngredients,
-      missingIngredients: candidate.missingIngredients,
-      substitutes: mapSubstitutesToItems(candidate.substitutes),
-      textureNote: candidate.textureNote,
-      caution: candidate.caution
-    }))
+    dayContext: input.dayContext,
+    candidateMenus: input.candidates.slice(0, MAX_CANDIDATES).map((candidate) => {
+      const resolvedMenu = resolveMenu(candidate);
+
+      return {
+        name: candidate.name,
+        menuFamily: candidate.menuFamily,
+        mealType: input.mealType,
+        mainProtein: candidate.mainProtein,
+        requiredIngredients: uniqueIngredients([
+          ...(resolvedMenu?.primaryIngredients ?? candidate.usedIngredients),
+          ...candidate.missingIngredients
+        ]),
+        optionalIngredients:
+          resolvedMenu?.optionalIngredients ?? resolvedMenu?.pantryIngredients ?? candidate.optionalAddedIngredients,
+        textureGuide: candidate.textureNote,
+        ageSuitability: {
+          minAgeMonths: resolvedMenu?.minAgeMonths ?? null,
+          maxAgeMonths: resolvedMenu?.maxAgeMonths ?? null
+        },
+        caution: candidate.caution
+      };
+    })
   };
 }
 
@@ -510,15 +561,23 @@ function buildSystemPrompt() {
     "당신은 아이 맞춤 식단 앱의 서버사이드 요약 생성기입니다.",
     "규칙 기반 추천 엔진이 이미 selectedMenu를 결정했으므로 다른 메뉴를 선택하면 안 됩니다.",
     "반드시 JSON만 반환하세요.",
-    "입력으로 받은 child.ageMonths를 기준으로 식감, 조리 난이도, 추천 수준을 판단하세요.",
+    "입력으로 받은 child.childAgeMonths를 기준으로 식감, 조리 난이도, 추천 수준을 판단하세요.",
+    "generationMode가 auto_recommend면 입력 재료 없이 시스템 추천으로 생성된 결과입니다.",
+    "userInputIngredients는 사용자가 직접 입력한 재료이고, optionalAddedIngredients는 시스템이 허용한 보완 재료입니다.",
+    "userInputIngredients, optionalAddedIngredients, expectedMissingIngredients, expectedSubstitutes 범위를 벗어나는 재료를 새로 제안하면 안 됩니다.",
+    "candidateMenus 밖의 새 메뉴를 창작하면 안 됩니다.",
+    "dayContext에 이미 선택된 다른 끼니 정보가 있을 수 있으며, 설명은 그 흐름과 어울리되 selectedMenu는 바꾸지 마세요.",
+    "죽, 스튜, 매시 형태를 과도하게 반복하도록 유도하는 표현은 피하세요.",
     "selectedMenu는 입력으로 받은 selectedMenu와 정확히 동일해야 합니다.",
-    "calories, protein, cookTimeMinutes는 입력의 expectedCalories, expectedProtein, expectedCookTimeMinutes와 정확히 동일해야 합니다.",
+    "영양값과 조리 시간은 시스템 규칙으로 계산하므로 JSON에 calories, protein, cookTimeMinutes, nutritionEstimate를 포함하면 안 됩니다.",
     "missingIngredients는 입력의 expectedMissingIngredients와 동일하게 유지하세요.",
     "substitutes는 ingredient와 substitutes 배열을 가진 객체 목록이어야 합니다.",
     "substitutes의 ingredient와 substitutes 값은 expectedSubstitutes 범위 안에서만 작성하세요.",
-    "추천 문구와 조리법, 주의사항은 입력된 실제 개월수 기준으로 안전하고 부드러운 식감에 맞춰 작성하세요.",
+    "추천 문구와 조리법, textureGuide, 주의사항은 입력된 실제 개월수 기준으로 안전하고 적절한 식감에 맞춰 작성하세요.",
     "알레르기 재료나 위험한 표현은 절대 포함하지 마세요.",
-    "recipe는 보호자가 바로 따라 할 수 있는 짧은 3단계 배열이어야 합니다."
+    "recipeSummary는 정확히 3줄이어야 합니다.",
+    "recipeFull은 5단계 이상 8단계 이하로 작성하세요.",
+    "recipeFull은 보호자가 바로 따라 할 수 있는 수준으로 구체적으로 작성하세요."
   ].join(" ");
 }
 
@@ -591,6 +650,14 @@ async function enhanceMealResultWithAi(input: {
   normalizedInputIngredients: string[];
   selectedResult: MealRecommendation;
   candidates: MealRecommendation[];
+  dayContext: Array<{
+    mealType: MealType;
+    menu: string;
+    menuFamily: string | null;
+    mainProtein: string;
+    usedIngredients: string[];
+  }>;
+  menuCatalog: MenuDefinition[];
   openAiConfig: OpenAiConfig | null;
 }): Promise<AiGenerationOutcome> {
   const requestPayload = buildAiRequestPayload({
@@ -598,7 +665,9 @@ async function enhanceMealResultWithAi(input: {
     mealType: input.mealType,
     normalizedInputIngredients: input.normalizedInputIngredients,
     selectedResult: input.selectedResult,
-    candidates: input.candidates
+    candidates: input.candidates,
+    dayContext: input.dayContext,
+    menuCatalog: input.menuCatalog
   });
 
   if (!input.openAiConfig) {
@@ -648,7 +717,8 @@ async function enhanceMealResultWithAi(input: {
     const guardedNarrative = guardGeneratedMealContent({
       generated: {
         recommendationText: parsed.recommendation,
-        recipeSummary: parsed.recipe,
+        recipeSummary: parsed.recipeSummary,
+        recipeFull: parsed.recipeFull,
         missingIngredientExplanation: parsed.missingIngredientExplanation,
         caution: parsed.caution,
         promptVersion: AI_PROMPT_VERSION,
@@ -678,13 +748,21 @@ async function enhanceMealResultWithAi(input: {
     return {
       result: {
         ...input.selectedResult,
+        menuFamily: parsed.menuFamily ?? input.selectedResult.menuFamily,
+        textureNote: parsed.textureGuide || input.selectedResult.textureNote,
         recommendationText: guardedNarrative.recommendationText,
         recipeSummary: guardedNarrative.recipeSummary,
+        recipeFull: guardedNarrative.recipeFull,
         missingIngredientExplanation: guardedNarrative.missingIngredientExplanation,
         caution: guardedNarrative.caution,
-        calories: Math.round(parsed.calories),
-        protein: Math.round(parsed.protein),
-        cookTimeMinutes: Math.round(parsed.cookTimeMinutes),
+        optionalAddedIngredients:
+          parsed.optionalAddedIngredients.length > 0
+            ? parsed.optionalAddedIngredients
+            : input.selectedResult.optionalAddedIngredients,
+        nutritionEstimate: input.selectedResult.nutritionEstimate,
+        calories: input.selectedResult.calories,
+        protein: input.selectedResult.protein,
+        cookTimeMinutes: input.selectedResult.cookTimeMinutes,
         promptVersion: AI_PROMPT_VERSION,
         isFallback: false
       },
@@ -734,12 +812,22 @@ serve(async (request) => {
     const { plan: basePlan, candidates } = buildDailyMealPlanWithCandidates({
       child: payload.child,
       mealInputs: normalizedMealInputs,
+      generationMode: payload.generationMode,
+      allowAutoSupplement: payload.allowAutoSupplement,
       menuCatalog
     });
     const openAiConfig = getOpenAiConfig();
     const results = { ...basePlan.results };
 
     for (const mealType of MEAL_TYPES) {
+      const dayContext = MEAL_TYPES.filter((item) => item !== mealType).map((item) => ({
+        mealType: item,
+        menu: results[item].name,
+        menuFamily: results[item].menuFamily,
+        mainProtein: results[item].mainProtein,
+        usedIngredients: results[item].usedIngredients
+      }));
+
       const outcome = await enhanceMealResultWithAi({
         request,
         child: payload.child,
@@ -747,6 +835,8 @@ serve(async (request) => {
         normalizedInputIngredients: normalizedMealInputs[mealType],
         selectedResult: basePlan.results[mealType],
         candidates: candidates[mealType] ?? [],
+        dayContext,
+        menuCatalog,
         openAiConfig
       });
 

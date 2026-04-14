@@ -19,6 +19,7 @@ function createMenu(overrides: Partial<MenuDefinition> & Pick<MenuDefinition, "i
   return {
     id: overrides.id,
     name: overrides.name,
+    menuFamily: overrides.menuFamily ?? null,
     mealTypes: overrides.mealTypes ?? ["breakfast"],
     primaryIngredients: overrides.primaryIngredients ?? [],
     optionalIngredients: overrides.optionalIngredients ?? [],
@@ -165,9 +166,17 @@ describe("buildDailyMealPlanWithCandidates", () => {
       ]
     });
 
-    expect(plan.results.breakfast.calories).toBe(180);
-    expect(plan.results.breakfast.protein).toBe(8);
-    expect(plan.results.breakfast.cookTimeMinutes).toBe(15);
+    expect(plan.results.breakfast.calories).toBe(plan.results.breakfast.nutritionEstimate.caloriesKcal);
+    expect(plan.results.breakfast.protein).toBe(plan.results.breakfast.nutritionEstimate.proteinG);
+    expect(plan.results.breakfast.cookTimeMinutes).toBe(
+      plan.results.breakfast.nutritionEstimate.estimatedCookTimeMin
+    );
+    expect(plan.results.breakfast.nutritionEstimate.caloriesKcal).toBeGreaterThan(0);
+    expect(plan.results.breakfast.recipeSummary).toHaveLength(3);
+    expect(plan.results.breakfast.recipeFull).toHaveLength(5);
+    expect(plan.results.breakfast.inputStrength).toBe("medium");
+    expect(plan.generationMode).toBe("ingredient_first");
+    expect(plan.allowAutoSupplement).toBe(true);
   });
 
   it("prefers a less baby-style menu for older toddlers when equivalent options exist", () => {
@@ -219,5 +228,156 @@ describe("buildDailyMealPlanWithCandidates", () => {
 
     expect(plan.results.breakfast.isFallback).toBe(true);
     expect(plan.results.breakfast.cookingStyle).toBe("무른밥");
+  });
+
+  it("switches to auto_recommend mode when no meal inputs are provided", () => {
+    const { plan } = buildDailyMealPlanWithCandidates({
+      child: createChild(),
+      mealInputs: createMealInputs(),
+      menuCatalog: []
+    });
+
+    expect(plan.generationMode).toBe("auto_recommend");
+  });
+
+  it("fills optionalAddedIngredients from pantry or hidden ingredients when inputs are sparse", () => {
+    const { plan } = buildDailyMealPlanWithCandidates({
+      child: createChild({ ageMonths: 20 }),
+      mealInputs: createMealInputs({
+        breakfast: ["소고기"]
+      }),
+      allowAutoSupplement: true,
+      menuCatalog: [
+        createMenu({
+          id: "beef-rice-zucchini",
+          name: "소고기 애호박 무른밥",
+          mealTypes: ["breakfast"],
+          primaryIngredients: ["소고기"],
+          optionalIngredients: ["애호박"],
+          pantryIngredients: ["밥"],
+          hiddenIngredients: ["육수"],
+          defaultMissingIngredients: [],
+          substitutes: {},
+          cookingStyle: "무른밥",
+          mainProtein: "소고기"
+        })
+      ]
+    });
+
+    expect(plan.results.breakfast.optionalAddedIngredients).toEqual(["밥"]);
+  });
+
+  it("uses auto_recommend mode context and limited supplement ingredients when there are no inputs", () => {
+    const { plan } = buildDailyMealPlanWithCandidates({
+      child: createChild({ ageMonths: 20 }),
+      mealInputs: createMealInputs(),
+      allowAutoSupplement: true,
+      menuCatalog: [
+        createMenu({
+          id: "tofu-rice-breakfast",
+          name: "두부 아침 무른밥",
+          mealTypes: ["breakfast"],
+          primaryIngredients: ["두부"],
+          optionalIngredients: ["당근"],
+          pantryIngredients: ["밥"],
+          hiddenIngredients: [],
+          defaultMissingIngredients: [],
+          substitutes: {},
+          cookingStyle: "무른밥",
+          mainProtein: "두부"
+        })
+      ]
+    });
+
+    expect(plan.generationMode).toBe("auto_recommend");
+    expect(plan.results.breakfast.optionalAddedIngredients).toEqual(["밥"]);
+    expect(plan.notices).toContainEqual({
+      tone: "warning",
+      message: "아침 입력이 없어 밥, 오트밀, 감자를 바탕으로 자동 추천했어요."
+    });
+  });
+
+  it("excludes allergy ingredients from auto supplement candidates", () => {
+    const { plan } = buildDailyMealPlanWithCandidates({
+      child: createChild({ ageMonths: 20, allergies: ["두부"] }),
+      mealInputs: createMealInputs({
+        breakfast: ["밥"]
+      }),
+      allowAutoSupplement: true,
+      menuCatalog: [
+        createMenu({
+          id: "rice-breakfast",
+          name: "밥 아침 무른밥",
+          mealTypes: ["breakfast"],
+          primaryIngredients: ["밥"],
+          optionalIngredients: ["당근"],
+          pantryIngredients: ["두부"],
+          hiddenIngredients: [],
+          defaultMissingIngredients: [],
+          substitutes: {},
+          cookingStyle: "무른밥",
+          mainProtein: "채소"
+        })
+      ]
+    });
+
+    expect(plan.results.breakfast.optionalAddedIngredients).not.toContain("두부");
+    expect(plan.notices).toContainEqual({
+      tone: "warning",
+      message: "아침 자동 보완 후보에서 알레르기 재료 두부를 제외했어요."
+    });
+  });
+
+  it("penalizes repeated menu families across meals when similar candidates exist", () => {
+    const menuCatalog = [
+      createMenu({
+        id: "beef-porridge",
+        name: "소고기 죽",
+        menuFamily: "porridge",
+        mealTypes: ["breakfast"],
+        primaryIngredients: ["소고기"],
+        pantryIngredients: ["쌀"],
+        defaultMissingIngredients: ["쌀"],
+        substitutes: { 쌀: ["밥"] },
+        cookingStyle: "죽",
+        mainProtein: "소고기"
+      }),
+      createMenu({
+        id: "beef-porridge-lunch",
+        name: "소고기 점심죽",
+        menuFamily: "porridge",
+        mealTypes: ["lunch"],
+        primaryIngredients: ["소고기"],
+        pantryIngredients: ["쌀"],
+        defaultMissingIngredients: ["쌀"],
+        substitutes: { 쌀: ["밥"] },
+        cookingStyle: "죽",
+        mainProtein: "소고기"
+      }),
+      createMenu({
+        id: "beef-rice-bowl-lunch",
+        name: "소고기 덮밥",
+        menuFamily: "rice_bowl",
+        mealTypes: ["lunch"],
+        primaryIngredients: ["소고기"],
+        pantryIngredients: ["밥"],
+        defaultMissingIngredients: ["밥"],
+        substitutes: { 밥: ["쌀"] },
+        cookingStyle: "덮밥",
+        mainProtein: "소고기"
+      })
+    ];
+
+    const { plan } = buildDailyMealPlanWithCandidates({
+      child: createChild({ ageMonths: 24 }),
+      mealInputs: createMealInputs({
+        breakfast: ["소고기", "쌀"],
+        lunch: ["소고기", "밥"]
+      }),
+      menuCatalog
+    });
+
+    expect(plan.results.breakfast.menuFamily).toBe("porridge");
+    expect(plan.results.lunch.menuFamily).toBe("rice_bowl");
   });
 });

@@ -73,6 +73,8 @@ export function guardGeneratedMealContent(input: GuardInput): GeneratedMealConte
   const recommendationText = input.generated.recommendationText?.trim() ?? "";
   const guardedRecipeSummary =
     input.generated.recipeSummary?.map((step) => step.trim()).filter(Boolean) ?? [];
+  const guardedRecipeFull =
+    input.generated.recipeFull?.map((step) => step.trim()).filter(Boolean) ?? guardedRecipeSummary;
   const missingIngredientExplanation = input.generated.missingIngredientExplanation?.trim() ?? "";
   const caution = input.generated.caution?.trim() ?? "";
 
@@ -80,18 +82,22 @@ export function guardGeneratedMealContent(input: GuardInput): GeneratedMealConte
     !recommendationText ||
     !missingIngredientExplanation ||
     guardedRecipeSummary.length === 0 ||
+    guardedRecipeFull.length < 5 ||
     containsAllergyText(recommendationText, input.allergies) ||
     containsAllergyText(missingIngredientExplanation, input.allergies) ||
     containsAllergyText(caution, input.allergies) ||
     guardedRecipeSummary.some((step) => containsAllergyText(step, input.allergies)) ||
+    guardedRecipeFull.some((step) => containsAllergyText(step, input.allergies)) ||
     containsAgeMismatch(recommendationText, input.ageMonths) ||
     containsAgeMismatch(missingIngredientExplanation, input.ageMonths) ||
     containsAgeMismatch(caution, input.ageMonths) ||
     guardedRecipeSummary.some((step) => containsAgeMismatch(step, input.ageMonths)) ||
+    guardedRecipeFull.some((step) => containsAgeMismatch(step, input.ageMonths)) ||
     containsDangerousText(recommendationText) ||
     containsDangerousText(missingIngredientExplanation) ||
     containsDangerousText(caution) ||
-    guardedRecipeSummary.some((step) => containsDangerousText(step));
+    guardedRecipeSummary.some((step) => containsDangerousText(step)) ||
+    guardedRecipeFull.some((step) => containsDangerousText(step));
 
   if (invalidText) {
     return fallback;
@@ -100,6 +106,7 @@ export function guardGeneratedMealContent(input: GuardInput): GeneratedMealConte
   return {
     recommendationText,
     recipeSummary: guardedRecipeSummary.slice(0, 3),
+    recipeFull: guardedRecipeFull.slice(0, 8),
     missingIngredientExplanation,
     caution: caution || fallback.caution,
     promptVersion: input.generated.promptVersion?.trim() || "guarded-v1",

@@ -26,6 +26,7 @@
 - UX 판단은 `docs/ux-spec.md`를 따른다.
 - 시스템 구조 판단은 `docs/architecture.md`를 따른다.
 - Figma 기반 UI 구현은 `docs/figma-codex-implementation-guide.md`를 따른다.
+- 식단 생성 개선 stage 이력과 현재 상태는 `docs/meal-generation-stage-progress.md`를 따른다.
 - 구현 방법과 금지사항은 이 문서를 최우선으로 따른다.
 - 운영/배포 설정은 `docs/deployment/vercel-hosting.md`를 따른다.
 
@@ -316,4 +317,5 @@ AI는 구조화된 JSON으로 아래 필드를 반환해야 한다.
 - 제품 스펙: [./docs/product-spec.md](./docs/product-spec.md)
 - UX 스펙: [./docs/ux-spec.md](./docs/ux-spec.md)
 - 시스템 구조: [./docs/architecture.md](./docs/architecture.md)
+- 식단 생성 stage 이력: [./docs/meal-generation-stage-progress.md](./docs/meal-generation-stage-progress.md)
 - 운영 기준: [./docs/deployment/vercel-hosting.md](./docs/deployment/vercel-hosting.md)
