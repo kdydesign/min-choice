@@ -1,6 +1,6 @@
-import type { GeneratedMealContent } from "../../../types/domain";
-import { uniqueIngredients } from "../../ingredients/lib/ingredient-utils";
-import { generateMealNarrative } from "./meal-narrative";
+import type { GeneratedMealContent } from "../../../types/domain.ts";
+import { uniqueIngredients } from "../../ingredients/lib/ingredient-utils.ts";
+import { generateMealNarrative } from "./meal-narrative.ts";
 
 interface GuardInput {
   generated: Partial<GeneratedMealContent> | null | undefined;

@@ -4,7 +4,7 @@ import type {
   GenerationMode,
   MealType,
   NutritionEstimate
-} from "../../../types/domain";
+} from "../../../types/domain.ts";
 
 export interface GenerateMealPlanPayload {
   child: ChildProfile;

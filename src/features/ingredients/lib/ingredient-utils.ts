@@ -1,4 +1,4 @@
-import type { MealDraft } from "../../../types/domain";
+import type { MealDraft } from "../../../types/domain.ts";
 
 const INGREDIENT_ALIASES: Record<string, string> = {
   쇠고기: "소고기",

@@ -4,13 +4,13 @@ import type {
   MenuDefinition,
   NutritionConfidence,
   NutritionEstimate
-} from "../../../types/domain";
+} from "../../../types/domain.ts";
 import {
   getIngredientNutritionReference,
   type IngredientNutritionCategory
-} from "../../ingredients/data/ingredient-nutrition-reference";
-import { inferMenuFamily } from "../../menus/data/menu-catalog";
-import { uniqueIngredients } from "../../ingredients/lib/ingredient-utils";
+} from "../../ingredients/data/ingredient-nutrition-reference.ts";
+import { inferMenuFamily } from "../../menus/data/menu-catalog.ts";
+import { uniqueIngredients } from "../../ingredients/lib/ingredient-utils.ts";
 
 interface EstimateMealNutritionInput {
   mealType: MealType;

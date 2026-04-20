@@ -1,4 +1,4 @@
-import type { MenuDefinition } from "../../../types/domain";
+import type { MenuDefinition } from "../../../types/domain.ts";
 
 export const MEAL_LABELS = {
   breakfast: "아침",

@@ -1,9 +1,9 @@
-import type { InputStrength, MealType } from "../../../types/domain";
+import type { InputStrength, MealType } from "../../../types/domain.ts";
 import {
   getIngredientConflicts,
   normalizeIngredient,
   uniqueIngredients
-} from "../../ingredients/lib/ingredient-utils";
+} from "../../ingredients/lib/ingredient-utils.ts";
 
 interface PrepareMealGenerationContextInput {
   mealType: MealType;

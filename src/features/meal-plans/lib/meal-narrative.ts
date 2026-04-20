@@ -1,6 +1,6 @@
-import type { GeneratedMealContent } from "../../../types/domain";
-import { formatIngredientList } from "../../ingredients/lib/ingredient-utils";
-import { MEAL_LABELS } from "../../menus/data/menu-catalog";
+import type { GeneratedMealContent } from "../../../types/domain.ts";
+import { formatIngredientList } from "../../ingredients/lib/ingredient-utils.ts";
+import { MEAL_LABELS } from "../../menus/data/menu-catalog.ts";
 
 interface MealNarrativeInput {
   mealType: "breakfast" | "lunch" | "dinner";

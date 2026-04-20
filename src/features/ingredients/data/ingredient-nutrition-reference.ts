@@ -1,4 +1,4 @@
-import { normalizeIngredient } from "../lib/ingredient-utils";
+import { normalizeIngredient } from "../lib/ingredient-utils.ts";
 
 export type IngredientNutritionCategory =
   | "grain"

@@ -7,23 +7,23 @@ import {
   type MealType,
   type MenuDefinition,
   MEAL_TYPES
-} from "../../../types/domain";
+} from "../../../types/domain.ts";
 import {
   formatIngredientList,
   getIngredientConflicts,
   normalizeIngredient,
   uniqueIngredients
-} from "../../ingredients/lib/ingredient-utils";
+} from "../../ingredients/lib/ingredient-utils.ts";
 import {
   DEFAULT_SUBSTITUTES,
   MEAL_LABELS,
   MENU_CATALOG
-} from "../../menus/data/menu-catalog";
-import { deriveAgeMonthsFromBirthDate } from "../../children/lib/profile-date-utils";
-import { guardGeneratedMealContent } from "./ai-response-guard";
-import { prepareMealGenerationContext, type MealGenerationContext } from "./auto-supplement";
-import { generateMealNarrative } from "./meal-narrative";
-import { applyNutritionEstimateToRecommendation } from "./nutrition-estimate";
+} from "../../menus/data/menu-catalog.ts";
+import { deriveAgeMonthsFromBirthDate } from "../../children/lib/profile-date-utils.ts";
+import { guardGeneratedMealContent } from "./ai-response-guard.ts";
+import { prepareMealGenerationContext, type MealGenerationContext } from "./auto-supplement.ts";
+import { generateMealNarrative } from "./meal-narrative.ts";
+import { applyNutritionEstimateToRecommendation } from "./nutrition-estimate.ts";
 
 export interface DailyMealPlanWithCandidates {
   plan: DailyMealPlan;
