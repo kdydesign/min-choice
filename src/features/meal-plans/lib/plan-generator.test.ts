@@ -217,6 +217,44 @@ describe("buildDailyMealPlanWithCandidates", () => {
     expect(plan.results.breakfast.cookingStyle).toBe("무른밥");
   });
 
+  it("prefers a less repetitive breakfast style for early toddlers when ingredients are equally good", () => {
+    const menuCatalog = [
+      createMenu({
+        id: "beef-zucchini-porridge",
+        name: "소고기 애호박 죽",
+        mealTypes: ["breakfast"],
+        primaryIngredients: ["소고기", "애호박"],
+        pantryIngredients: ["밥"],
+        defaultMissingIngredients: [],
+        substitutes: {},
+        cookingStyle: "죽",
+        mainProtein: "소고기"
+      }),
+      createMenu({
+        id: "beef-zucchini-soft-rice",
+        name: "소고기 애호박 무른밥",
+        mealTypes: ["breakfast"],
+        primaryIngredients: ["소고기", "애호박"],
+        pantryIngredients: ["밥"],
+        defaultMissingIngredients: [],
+        substitutes: {},
+        cookingStyle: "무른밥",
+        mainProtein: "소고기"
+      })
+    ];
+
+    const { plan } = buildDailyMealPlanWithCandidates({
+      child: createChild({ ageMonths: 13 }),
+      mealInputs: createMealInputs({
+        breakfast: ["소고기", "애호박", "밥"]
+      }),
+      menuCatalog
+    });
+
+    expect(plan.results.breakfast.name).toBe("소고기 애호박 무른밥");
+    expect(plan.results.breakfast.cookingStyle).toBe("무른밥");
+  });
+
   it("uses an older-child fallback style instead of porridge for breakfast when no candidates exist", () => {
     const { plan } = buildDailyMealPlanWithCandidates({
       child: createChild({ ageMonths: 32 }),

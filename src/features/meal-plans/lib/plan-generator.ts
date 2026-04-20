@@ -30,6 +30,10 @@ export interface DailyMealPlanWithCandidates {
   candidates: Record<MealType, MealRecommendation[]>;
 }
 
+const SUPPLEMENT_MATCH_WEIGHT = 0.45;
+const SUPPLEMENT_MISSING_WEIGHT = 0.6;
+const SOFT_MENU_FAMILIES = new Set(["porridge", "mash", "risotto"]);
+
 interface BuildDailyMealPlanInput {
   child: ChildProfile;
   mealInputs: Record<MealType, string[]>;
@@ -63,6 +67,20 @@ export function isTooSoftCookingStyleForAge(cookingStyle: string, ageMonths: num
 }
 
 function getAgeStyleAdjustment(menu: MenuDefinition, ageMonths: number) {
+  if (ageMonths >= 12 && ageMonths < 16) {
+    if (["무른밥", "덮밥", "볶음밥", "찜", "스튜"].includes(menu.cookingStyle)) {
+      return 0.45;
+    }
+
+    if (menu.cookingStyle === "죽") {
+      return -0.45;
+    }
+
+    if (menu.cookingStyle === "매시") {
+      return -0.7;
+    }
+  }
+
   if (ageMonths <= 10) {
     if (["죽", "매시", "리조또"].includes(menu.cookingStyle)) {
       return 0.8;
@@ -218,18 +236,20 @@ function getAgeRangeScore(menu: MenuDefinition, ageMonths: number) {
   return 1.1;
 }
 
-function getIngredientCoverageScore(menu: MenuDefinition, availableIngredients: string[]) {
-  const targetIngredients = uniqueIngredients([
-    ...menu.primaryIngredients,
-    ...menu.optionalIngredients
-  ]);
-
-  if (targetIngredients.length === 0) {
-    return 0;
+function getIngredientMatchWeight(
+  ingredient: string,
+  inputIngredients: string[],
+  optionalAddedIngredients: string[]
+) {
+  if (inputIngredients.includes(ingredient)) {
+    return 1;
   }
 
-  const matchedCount = targetIngredients.filter((item) => availableIngredients.includes(item)).length;
-  return toRoundedScore(matchedCount / targetIngredients.length);
+  if (optionalAddedIngredients.includes(ingredient)) {
+    return SUPPLEMENT_MATCH_WEIGHT;
+  }
+
+  return 0;
 }
 
 function getIngredientUtilizationScore(menu: MenuDefinition, inputIngredients: string[]) {
@@ -242,12 +262,46 @@ function getIngredientUtilizationScore(menu: MenuDefinition, inputIngredients: s
   return toRoundedScore(usedInputCount / inputIngredients.length);
 }
 
-function getLowMissingIngredientScore(menu: MenuDefinition, availableIngredients: string[]) {
-  const baseMissingIngredients = uniqueIngredients([
-    ...menu.primaryIngredients.filter((item) => !availableIngredients.includes(item)),
-    ...menu.defaultMissingIngredients.filter((item) => !availableIngredients.includes(item))
+function getWeightedIngredientCoverageScore(menu: MenuDefinition, mealContext: MealGenerationContext) {
+  const targetIngredients = uniqueIngredients([
+    ...menu.primaryIngredients,
+    ...menu.optionalIngredients
   ]);
-  const effectiveMissingCount = baseMissingIngredients.length;
+
+  if (targetIngredients.length === 0) {
+    return 0;
+  }
+
+  const weightedMatchCount = targetIngredients.reduce(
+    (sum, ingredient) =>
+      sum +
+      getIngredientMatchWeight(
+        ingredient,
+        mealContext.inputIngredients,
+        mealContext.optionalAddedIngredients
+      ),
+    0
+  );
+
+  return toRoundedScore(weightedMatchCount / targetIngredients.length);
+}
+
+function getLowMissingIngredientScore(menu: MenuDefinition, mealContext: MealGenerationContext) {
+  const baseMissingIngredients = uniqueIngredients([
+    ...menu.primaryIngredients,
+    ...menu.defaultMissingIngredients
+  ]);
+  const effectiveMissingCount = baseMissingIngredients.reduce((sum, ingredient) => {
+    if (mealContext.inputIngredients.includes(ingredient)) {
+      return sum;
+    }
+
+    if (mealContext.optionalAddedIngredients.includes(ingredient)) {
+      return sum + SUPPLEMENT_MISSING_WEIGHT;
+    }
+
+    return sum + 1;
+  }, 0);
 
   return toRoundedScore(1 / (1 + effectiveMissingCount));
 }
@@ -261,32 +315,61 @@ function getDiversityScore(
   let score = 1;
 
   if (seenFamilies.has(family)) {
-    score -= 0.45;
+    score -= 0.6;
   }
 
   if (menu.mainProtein !== "채소" && seenProteins.has(menu.mainProtein)) {
-    score -= 0.35;
+    score -= 0.45;
   }
 
   return toRoundedScore(score);
 }
 
+function getSoftStyleVarietyAdjustment(
+  menu: MenuDefinition,
+  mealType: MealType,
+  ageMonths: number,
+  seenFamilies: Set<string>
+) {
+  if (ageMonths < 12 || mealType === "breakfast" || seenFamilies.size === 0) {
+    return 0;
+  }
+
+  const family = menu.menuFamily ?? menu.cookingStyle;
+  const hasSeenSoftFamily = [...seenFamilies].some((seenFamily) => SOFT_MENU_FAMILIES.has(seenFamily));
+
+  if (!hasSeenSoftFamily) {
+    return 0;
+  }
+
+  if (SOFT_MENU_FAMILIES.has(family)) {
+    return ageMonths >= 16 ? -0.45 : -0.3;
+  }
+
+  return 0.15;
+}
+
 function scoreMenu(
   menu: MenuDefinition,
   mealType: MealType,
-  inputIngredients: string[],
-  availableIngredients: string[],
+  mealContext: MealGenerationContext,
   ageMonths: number,
   seenFamilies: Set<string>,
   seenProteins: Set<string>
 ): CandidateScoreBreakdown {
-  const ingredientUtilizationScore = getIngredientUtilizationScore(menu, inputIngredients);
-  const ingredientCoverageScore = getIngredientCoverageScore(menu, availableIngredients);
-  const lowMissingIngredientScore = getLowMissingIngredientScore(menu, availableIngredients);
+  const ingredientUtilizationScore = getIngredientUtilizationScore(menu, mealContext.inputIngredients);
+  const ingredientCoverageScore = getWeightedIngredientCoverageScore(menu, mealContext);
+  const lowMissingIngredientScore = getLowMissingIngredientScore(menu, mealContext);
   const diversityScore = getDiversityScore(menu, seenFamilies, seenProteins);
   const exactMealBonus = menu.mealTypes.includes(mealType) ? 0.5 : 0;
   const ageAdjustment = getAgeStyleAdjustment(menu, ageMonths);
   const ageRangeScore = getAgeRangeScore(menu, ageMonths);
+  const softStyleVarietyAdjustment = getSoftStyleVarietyAdjustment(
+    menu,
+    mealType,
+    ageMonths,
+    seenFamilies
+  );
 
   const total =
     ingredientUtilizationScore * 4.4 +
@@ -295,7 +378,8 @@ function scoreMenu(
     diversityScore * 2 +
     exactMealBonus +
     ageAdjustment +
-    ageRangeScore;
+    ageRangeScore +
+    softStyleVarietyAdjustment;
 
   return {
     total,
@@ -492,8 +576,7 @@ function getMealCandidates(
       const scoreBreakdown = scoreMenu(
         menu,
         mealType,
-        mealContext.inputIngredients,
-        mealContext.availableIngredients,
+        mealContext,
         ageMonths,
         seenFamilies,
         seenProteins

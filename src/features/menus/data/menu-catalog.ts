@@ -66,7 +66,7 @@ function getDefaultAgeRange(menuFamily: string) {
     case "risotto":
       return { minAgeMonths: 9, maxAgeMonths: 28 };
     case "rice_bowl":
-      return { minAgeMonths: 14, maxAgeMonths: 48 };
+      return { minAgeMonths: 12, maxAgeMonths: 48 };
     case "patty":
       return { minAgeMonths: 18, maxAgeMonths: 48 };
     case "steamed":
