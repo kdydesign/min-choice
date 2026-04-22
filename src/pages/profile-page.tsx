@@ -243,6 +243,7 @@ export function ProfilePage() {
                   setSelectedPlan("");
                   setEditingChildId(null);
                   setViewMode("list");
+                  navigate("/");
                 }}
                 onAdd={handleOpenCreate}
                 onEdit={handleOpenEdit}

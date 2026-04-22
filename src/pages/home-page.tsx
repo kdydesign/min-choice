@@ -7,6 +7,7 @@ import { ErrorState } from "../components/error-state";
 import { AppIcon } from "../components/icons/app-icon";
 import { SessionCheckingOverlay } from "../features/auth/components/session-checking-overlay";
 import { listChildProfiles } from "../features/children/api/child-profile-repository";
+import { ChildCardMenuButton } from "../features/children/components/child-card-menu-button";
 import {
   clearMealDraft,
   getMealDraft,
@@ -394,23 +395,19 @@ export function HomePage() {
               <strong>{selectedChild.name}</strong>
               <span>{selectedChild.ageMonths}개월</span>
             </div>
-            <button
-              type="button"
-              className="meal-plan-selected-child-action"
-              onClick={() => {
-                if (isGenerating) {
-                  return;
-                }
+            <div className="child-card-menu-wrap">
+              <ChildCardMenuButton
+                onClick={() => {
+                  if (isGenerating) {
+                    return;
+                  }
 
-                navigate("/profile");
-              }}
-              aria-label="아이 프로필 수정"
-              disabled={isGenerating}
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path d="M4 10a1.75 1.75 0 113.5 0A1.75 1.75 0 014 10Zm4.25 0a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0Zm6 0a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0Z" />
-              </svg>
-            </button>
+                  navigate("/profile");
+                }}
+                ariaLabel="아이 프로필 화면 열기"
+                disabled={isGenerating}
+              />
+            </div>
           </section>
         ) : null}
 

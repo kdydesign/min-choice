@@ -106,34 +106,46 @@ export function MealResultCard({
           </ol>
         </div>
 
-        <div className="meal-result-stats">
-          <span className="meal-result-stat">
-            <span className="meal-result-stat-icon calories" aria-hidden="true">
+        <div className="meal-result-meta">
+          <div className="meal-result-meta-item">
+            <span className="meal-result-meta-icon calories" aria-hidden="true">
               <AppIcon name="calories" size={16} />
             </span>
-            <span className="meal-result-stat-copy">
-              <small>칼로리</small>
-              <strong>약 {meal.nutritionEstimate.caloriesKcal}kcal</strong>
+            <span className="meal-result-meta-copy">
+              <span className="meal-result-meta-label">칼로리</span>
+              <span className="meal-result-meta-value">
+                <span className="meal-result-meta-number-group">
+                  {meal.nutritionEstimate.caloriesKcal}kcal
+                </span>
+              </span>
             </span>
-          </span>
-          <span className="meal-result-stat">
-            <span className="meal-result-stat-icon protein" aria-hidden="true">
+          </div>
+          <div className="meal-result-meta-item">
+            <span className="meal-result-meta-icon protein" aria-hidden="true">
               <AppIcon name="protein" size={16} />
             </span>
-            <span className="meal-result-stat-copy">
-              <small>단백질</small>
-              <strong>약 {meal.nutritionEstimate.proteinG}g</strong>
+            <span className="meal-result-meta-copy">
+              <span className="meal-result-meta-label">단백질</span>
+              <span className="meal-result-meta-value">
+                <span className="meal-result-meta-number-group">
+                  {meal.nutritionEstimate.proteinG}g
+                </span>
+              </span>
             </span>
-          </span>
-          <span className="meal-result-stat">
-            <span className="meal-result-stat-icon cook-time" aria-hidden="true">
+          </div>
+          <div className="meal-result-meta-item meal-result-meta-item-cook-time">
+            <span className="meal-result-meta-icon cook-time" aria-hidden="true">
               <AppIcon name="cookTime" size={16} />
             </span>
-            <span className="meal-result-stat-copy">
-              <small>조리 시간</small>
-              <strong>약 {meal.nutritionEstimate.estimatedCookTimeMin}분</strong>
+            <span className="meal-result-meta-copy">
+              <span className="meal-result-meta-label">조리 시간</span>
+              <span className="meal-result-meta-value">
+                <span className="meal-result-meta-number-group">
+                  {meal.nutritionEstimate.estimatedCookTimeMin}분
+                </span>
+              </span>
             </span>
-          </span>
+          </div>
         </div>
 
         <button

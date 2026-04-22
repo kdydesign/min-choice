@@ -2886,6 +2886,7 @@ li + li {
 .meal-plan-selected-child-copy {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .meal-plan-selected-child-copy strong {
@@ -2901,22 +2902,6 @@ li + li {
   font-size: 14px;
   line-height: 20px;
   letter-spacing: -0.1504px;
-}
-
-.meal-plan-selected-child-action {
-  margin-left: auto;
-  width: 35.988px;
-  height: 35.988px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: transparent;
-  color: #4b5563;
-}
-
-.meal-plan-selected-child-action svg {
-  width: 19.994px;
-  height: 19.994px;
 }
 
 .meal-plan-title-copy h2 {
@@ -3576,7 +3561,7 @@ li + li {
 }
 
 .meal-plan-page-header-side:disabled,
-.meal-plan-selected-child-action:disabled,
+.child-card-menu-button:disabled,
 .meal-plan-generate-button:disabled,
 .meal-plan-reset-link:disabled,
 .meal-result-header-side:disabled,
@@ -3934,7 +3919,8 @@ li + li {
   border: 0.615px solid #e5e7eb;
 }
 
-.meal-result-stats {
+.meal-result-meta {
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
@@ -3942,35 +3928,42 @@ li + li {
   border-top: 0.615px solid rgba(0, 0, 0, 0.1);
 }
 
-.meal-result-stat {
+.meal-result-meta-item {
   min-width: 0;
-  display: flex;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px;
   border-radius: 14px;
   background: #f8fafc;
   border: 1px solid rgba(226, 232, 240, 0.95);
+  box-sizing: border-box;
 }
 
-.meal-result-stat-icon {
+.meal-result-meta-icon {
   width: 28px;
   height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  flex-shrink: 0;
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.14);
 }
 
-.meal-result-stat-copy {
+.meal-result-meta-copy {
   min-width: 0;
+  overflow: hidden;
   display: grid;
   gap: 1px;
+  align-content: center;
 }
 
-.meal-result-stat-copy small {
+.meal-result-meta-label {
+  white-space: nowrap;
   color: #6b7280;
   font-size: 11px;
   line-height: 14px;
@@ -3978,26 +3971,43 @@ li + li {
   letter-spacing: -0.01em;
 }
 
-.meal-result-stat-copy strong {
+.meal-result-meta-value {
+  min-width: 0;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
   color: #1f2937;
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
+}
+
+.meal-result-meta-number-group {
+  white-space: nowrap;
+  flex: 0 0 auto;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.meal-result-meta-item-cook-time .meal-result-meta-label,
+.meal-result-meta-item-cook-time .meal-result-meta-value,
+.meal-result-meta-item-cook-time .meal-result-meta-number-group {
   white-space: nowrap;
 }
 
-.meal-result-stat-icon.calories {
+.meal-result-meta-icon.calories {
   color: #f97316;
   background: rgba(249, 115, 22, 0.12);
 }
 
-.meal-result-stat-icon.protein {
+.meal-result-meta-icon.protein {
   color: #3b82f6;
   background: rgba(59, 130, 246, 0.12);
 }
 
-.meal-result-stat-icon.cook-time {
+.meal-result-meta-icon.cook-time {
   color: #64748b;
   background: rgba(100, 116, 139, 0.12);
 }
@@ -4233,8 +4243,29 @@ li + li {
 }
 
 @media (max-width: 380px) {
-  .meal-result-stats {
-    grid-template-columns: 1fr;
+  .meal-result-meta {
+    gap: 6px;
+  }
+
+  .meal-result-meta-item {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .meal-result-meta-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .meal-result-meta-label {
+    font-size: 10px;
+    line-height: 13px;
+  }
+
+  .meal-result-meta-value {
+    gap: 2px;
+    font-size: 11px;
+    line-height: 14px;
   }
 
   .meal-result-actions {
@@ -4856,7 +4887,8 @@ li + li {
   color: #6b7280;
 }
 
-.profile-selection-card-menu {
+.profile-selection-card-menu,
+.child-card-menu-button {
   width: 36px;
   height: 36px;
   display: grid;
@@ -4869,18 +4901,22 @@ li + li {
     color 180ms ease;
 }
 
-.profile-selection-card-menu svg {
+.profile-selection-card-menu svg,
+.child-card-menu-button svg {
   width: 20px;
   height: 20px;
 }
 
 .profile-selection-card-menu:hover,
-.profile-selection-card-menu:focus-visible {
+.profile-selection-card-menu:focus-visible,
+.child-card-menu-button:hover,
+.child-card-menu-button:focus-visible {
   background: rgba(255, 255, 255, 0.72);
   color: #1f2937;
 }
 
-.profile-selection-card-menu-wrap {
+.profile-selection-card-menu-wrap,
+.child-card-menu-wrap {
   margin-left: auto;
   position: relative;
 }
@@ -4951,7 +4987,11 @@ li + li {
   border-radius: 16px;
   font-weight: 500;
   color: #1f2937;
-  transition: background-color 180ms ease;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
 }
 
 .profile-selection-button.soft {
@@ -4962,13 +5002,24 @@ li + li {
   background: #fff;
 }
 
-.profile-selection-button.selected {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+.profile-selection-button.soft.selected {
+  background: rgba(29, 78, 216, 0.92);
+  color: #ffffff;
+  box-shadow:
+    0 8px 18px rgba(29, 78, 216, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  font-weight: 700;
 }
 
 .profile-selection-button.soft:hover,
 .profile-selection-button.solid:hover {
   background: rgba(255, 255, 255, 0.92);
+}
+
+.profile-selection-button.soft.selected:hover,
+.profile-selection-button.soft.selected:focus-visible {
+  background: #1d4ed8;
+  color: #ffffff;
 }
 
 .profile-selection-add-button {
@@ -4999,10 +5050,11 @@ li + li {
 }
 
 .profile-selection-card.selected {
-  border-color: rgba(255, 255, 255, 0.62);
+  border-color: rgba(29, 78, 216, 0.62);
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.1),
-    0 1px 2px rgba(0, 0, 0, 0.1);
+    0 0 0 3px rgba(29, 78, 216, 0.14),
+    0 12px 28px rgba(29, 78, 216, 0.14),
+    0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 .profile-form-delete {

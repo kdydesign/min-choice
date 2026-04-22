@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppIcon } from "../../../components/icons/app-icon";
 import type { ChildProfile } from "../../../types/domain";
 import { getProfileBackgroundColor } from "../lib/profile-tone";
+import { ChildCardMenuButton } from "./child-card-menu-button";
 
 interface ChildSelectionCardProps {
   child: ChildProfile;
@@ -52,18 +53,12 @@ export function ChildSelectionCard({
           </div>
         </div>
 
-        <div ref={menuRef} className="profile-selection-card-menu-wrap">
-          <button
-            type="button"
-            className="profile-selection-card-menu"
+        <div ref={menuRef} className="child-card-menu-wrap">
+          <ChildCardMenuButton
             onClick={() => setIsMenuOpen((current) => !current)}
-            aria-label={`${child.name} 카드 메뉴 열기`}
+            ariaLabel={`${child.name} 카드 메뉴 열기`}
             aria-expanded={isMenuOpen}
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-            </svg>
-          </button>
+          />
 
           {isMenuOpen ? (
             <div className="profile-selection-card-menu-popover">
