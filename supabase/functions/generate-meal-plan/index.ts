@@ -1,13 +1,24 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { loadMenuCatalog } from "../_shared/catalog-repository.ts";
+import {
+  loadIngredientCatalog,
+  loadMenuCatalog,
+  type IngredientCatalogItem
+} from "../_shared/catalog-repository.ts";
 import {
   normalizeIngredient,
   uniqueIngredients
 } from "../../../src/features/ingredients/lib/ingredient-utils.ts";
 import { deriveAgeMonthsFromBirthDate } from "../../../src/features/children/lib/profile-date-utils.ts";
 import { guardGeneratedMealContent } from "../../../src/features/meal-plans/lib/ai-response-guard.ts";
+import {
+  PANTRY_BASICS,
+  validateAiMealSelection,
+  validateMealNutrition,
+  type MealHistorySnapshot,
+  type ValidatedAiMealSelection
+} from "../../../src/features/meal-plans/lib/ai-menu-selection.ts";
 import { buildDailyMealPlanWithCandidates } from "../../../src/features/meal-plans/lib/plan-generator.ts";
 import {
   MEAL_TYPES,
@@ -18,22 +29,24 @@ import {
 } from "../../../src/types/domain.ts";
 import type {
   AiMealResponse,
-  AiSubstituteItem,
   GenerateMealPlanPayload
 } from "../../../src/features/meal-plans/types/generation-contract.ts";
+import {
+  MEAL_LABELS,
+  resolveNormalizedMenuFamily
+} from "../../../src/features/menus/data/menu-catalog.ts";
 
 interface OpenAiConfig {
   apiKey: string;
   model: string;
 }
 
-interface NormalizedAiMealResponse extends Omit<AiMealResponse, "substitutes"> {
-  substitutes: Record<string, string[]>;
-  recipeSummary: string[];
-  recipeFull: string[];
-  textureGuide: string;
-  optionalAddedIngredients: string[];
-  menuFamily: string | null;
+interface AiAttemptRecord {
+  attemptNumber: 1 | 2;
+  requestPayload: unknown;
+  responsePayload: unknown;
+  validationStatus: string;
+  failureReasons: string[];
 }
 
 interface AiGenerationOutcome {
@@ -44,17 +57,38 @@ interface AiGenerationOutcome {
   responsePayload: unknown;
 }
 
+interface MealPlanHistoryRow {
+  created_at: string;
+  meal_plan_items?: MealPlanHistoryItemRow[] | null;
+}
+
+interface MealPlanHistoryItemRow {
+  meal_type: string;
+  menu_name?: unknown;
+  result_payload_json?: unknown;
+}
+
 class RequestValidationError extends Error {}
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const AI_PROMPT_VERSION = "openai-meal-copy-v3";
-const MAX_CANDIDATES = 3;
+const AI_PROMPT_VERSION = "openai-meal-selector-v1";
+const MAX_ATTEMPTS_PER_MEAL = 2;
+const MAX_CANDIDATES = 5;
 const AI_RESPONSE_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
     selectedMenu: { type: "string" },
-    recommendation: { type: "string" },
+    cookingStyle: { type: "string" },
+    mainProtein: { type: "string" },
+    usedIngredients: {
+      type: "array",
+      items: { type: "string" }
+    },
+    optionalAddedIngredients: {
+      type: "array",
+      items: { type: "string" }
+    },
     missingIngredients: {
       type: "array",
       items: { type: "string" }
@@ -75,6 +109,7 @@ const AI_RESPONSE_SCHEMA = {
         required: ["ingredient", "substitutes"]
       }
     },
+    recommendation: { type: "string" },
     recipeSummary: {
       type: "array",
       minItems: 3,
@@ -90,23 +125,28 @@ const AI_RESPONSE_SCHEMA = {
     textureGuide: { type: "string" },
     caution: { type: "string" },
     menuFamily: { type: ["string", "null"] },
-    optionalAddedIngredients: {
-      type: "array",
-      items: { type: "string" }
-    }
+    calories: { type: ["number", "string"] },
+    protein: { type: ["number", "string"] },
+    cookTimeMinutes: { type: ["number", "string"] }
   },
   required: [
     "selectedMenu",
-    "recommendation",
+    "cookingStyle",
+    "mainProtein",
+    "usedIngredients",
+    "optionalAddedIngredients",
     "missingIngredients",
     "missingIngredientExplanation",
     "substitutes",
+    "recommendation",
     "recipeSummary",
     "recipeFull",
     "textureGuide",
     "caution",
     "menuFamily",
-    "optionalAddedIngredients"
+    "calories",
+    "protein",
+    "cookTimeMinutes"
   ]
 } as const;
 
@@ -209,7 +249,8 @@ function parseGenerateMealPlanRequest(value: unknown): GenerateMealPlanPayload {
       value.generationMode === "ingredient_first" || value.generationMode === "auto_recommend"
         ? value.generationMode
         : undefined,
-    allowAutoSupplement: typeof value.allowAutoSupplement === "boolean" ? value.allowAutoSupplement : undefined
+    allowAutoSupplement:
+      typeof value.allowAutoSupplement === "boolean" ? value.allowAutoSupplement : undefined
   };
 }
 
@@ -240,200 +281,43 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-function isAiSubstituteItems(value: unknown): value is AiSubstituteItem[] {
+function isAiSubstituteItems(value: unknown) {
   if (!Array.isArray(value)) {
     return false;
   }
 
   return value.every(
     (item) =>
-      typeof item === "object" &&
-      item !== null &&
+      isRecord(item) &&
       typeof item.ingredient === "string" &&
       isStringArray(item.substitutes)
   );
 }
 
 function isAiMealResponse(value: unknown): value is AiMealResponse {
-  if (typeof value !== "object" || value === null) {
+  if (!isRecord(value)) {
     return false;
   }
 
   return (
     typeof value.selectedMenu === "string" &&
-    typeof value.recommendation === "string" &&
+    typeof value.cookingStyle === "string" &&
+    typeof value.mainProtein === "string" &&
+    isStringArray(value.usedIngredients) &&
+    isStringArray(value.optionalAddedIngredients) &&
     isStringArray(value.missingIngredients) &&
     typeof value.missingIngredientExplanation === "string" &&
     isAiSubstituteItems(value.substitutes) &&
+    typeof value.recommendation === "string" &&
     isStringArray(value.recipeSummary) &&
     isStringArray(value.recipeFull) &&
     typeof value.textureGuide === "string" &&
     typeof value.caution === "string" &&
-    isStringArray(value.optionalAddedIngredients) &&
-    (value.menuFamily === null || typeof value.menuFamily === "string")
+    (value.menuFamily === null || typeof value.menuFamily === "string") &&
+    (typeof value.calories === "number" || typeof value.calories === "string") &&
+    (typeof value.protein === "number" || typeof value.protein === "string") &&
+    (typeof value.cookTimeMinutes === "number" || typeof value.cookTimeMinutes === "string")
   );
-}
-
-function mapSubstitutesToItems(substitutes: Record<string, string[]>) {
-  return Object.entries(substitutes).map(([ingredient, items]) => ({
-    ingredient,
-    substitutes: items
-  }));
-}
-
-function normalizeSubstituteItems(items: AiSubstituteItem[]) {
-  return Object.fromEntries(
-    items.map((item) => [
-      normalizeIngredient(item.ingredient),
-      uniqueIngredients(item.substitutes)
-    ])
-  );
-}
-
-function normalizeAiMealResponse(response: AiMealResponse): NormalizedAiMealResponse {
-  return {
-    selectedMenu: response.selectedMenu.trim(),
-    recommendation: response.recommendation.trim(),
-    missingIngredients: uniqueIngredients(response.missingIngredients),
-    missingIngredientExplanation: response.missingIngredientExplanation.trim(),
-    substitutes: normalizeSubstituteItems(response.substitutes),
-    recipeSummary: response.recipeSummary.map((step) => step.trim()).filter(Boolean).slice(0, 3),
-    recipeFull: response.recipeFull.map((step) => step.trim()).filter(Boolean).slice(0, 8),
-    textureGuide: response.textureGuide.trim(),
-    caution: response.caution.trim(),
-    menuFamily: typeof response.menuFamily === "string" ? response.menuFamily.trim() || null : null,
-    optionalAddedIngredients: uniqueIngredients(response.optionalAddedIngredients)
-  };
-}
-
-const DANGEROUS_PHRASES = [
-  "통째로",
-  "크게 썰",
-  "큰 덩어리",
-  "질식",
-  "매운",
-  "매콤",
-  "고추",
-  "후추",
-  "짠맛",
-  "자극적인",
-  "꿀",
-  "술",
-  "약처럼",
-  "치료",
-  "완치"
-] as const;
-
-function containsAllergyText(text: string, allergies: string[]) {
-  return uniqueIngredients(allergies).some((allergy) => text.includes(allergy));
-}
-
-function containsDangerousText(text: string) {
-  return DANGEROUS_PHRASES.some((phrase) => text.includes(phrase));
-}
-
-function hasSameNormalizedSet(left: string[], right: string[]) {
-  const leftValues = uniqueIngredients(left);
-  const rightValues = uniqueIngredients(right);
-
-  if (leftValues.length !== rightValues.length) {
-    return false;
-  }
-
-  const rightSet = new Set(rightValues.map((item) => normalizeIngredient(item)));
-  return leftValues.every((item) => rightSet.has(normalizeIngredient(item)));
-}
-
-function buildAllowedValueMap(items: string[]) {
-  return new Map(items.map((item) => [normalizeIngredient(item), item] as const));
-}
-
-function validateAiStructuredFields(
-  response: NormalizedAiMealResponse,
-  selectedResult: MealRecommendation,
-  candidates: MealRecommendation[],
-  allergies: string[]
-) {
-  const candidateNameSet = new Set(candidates.map((candidate) => candidate.name));
-
-  if (!candidateNameSet.has(response.selectedMenu) || response.selectedMenu !== selectedResult.name) {
-    return false;
-  }
-
-  if (!hasSameNormalizedSet(response.missingIngredients, selectedResult.missingIngredients)) {
-    return false;
-  }
-
-  if (!hasSameNormalizedSet(Object.keys(response.substitutes), Object.keys(selectedResult.substitutes))) {
-    return false;
-  }
-
-  if ((response.menuFamily ?? null) !== (selectedResult.menuFamily ?? null)) {
-    return false;
-  }
-
-  if (response.recipeSummary.length !== 3 || response.recipeFull.length < 5 || response.recipeFull.length > 8) {
-    return false;
-  }
-
-  if (response.optionalAddedIngredients.length > 3) {
-    return false;
-  }
-
-  const narrativeFields = [
-    response.selectedMenu,
-    response.recommendation,
-    response.textureGuide,
-    response.missingIngredientExplanation,
-    response.caution,
-    ...response.recipeSummary,
-    ...response.recipeFull,
-    ...response.optionalAddedIngredients,
-    ...Object.keys(response.substitutes),
-    ...Object.values(response.substitutes).flat()
-  ];
-
-  if (
-    narrativeFields.some((field) => containsAllergyText(field, allergies)) ||
-    narrativeFields.some((field) => containsDangerousText(field))
-  ) {
-    return false;
-  }
-
-  const allowedSubstituteMap = new Map(
-    Object.entries(selectedResult.substitutes).map(([ingredient, substitutes]) => [
-      normalizeIngredient(ingredient),
-      buildAllowedValueMap(substitutes)
-    ] as const)
-  );
-
-  const allowedOptionalIngredients = new Set(
-    selectedResult.optionalAddedIngredients.map((ingredient) => normalizeIngredient(ingredient))
-  );
-
-  if (
-    response.optionalAddedIngredients.some(
-      (ingredient) => !allowedOptionalIngredients.has(normalizeIngredient(ingredient))
-    )
-  ) {
-    return false;
-  }
-
-  if (!response.textureGuide.trim() || containsAllergyText(response.textureGuide, allergies) || containsDangerousText(response.textureGuide)) {
-    return false;
-  }
-
-  return Object.entries(response.substitutes).every(([ingredient, substitutes]) => {
-    const allowedValues = allowedSubstituteMap.get(normalizeIngredient(ingredient));
-
-    if (!allowedValues) {
-      return false;
-    }
-
-    return uniqueIngredients(substitutes).every((substitute) =>
-      allowedValues.has(normalizeIngredient(substitute))
-    );
-  });
 }
 
 function createSupabaseLogClient(request: Request) {
@@ -490,98 +374,184 @@ async function writeAiGenerationLog(
   }
 }
 
+function createGeneratedMenuId(mealType: MealType, selectedMenu: string) {
+  const slug =
+    selectedMenu
+      .toLowerCase()
+      .replace(/[^a-z0-9가-힣]+/gu, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32) || mealType;
+
+  return `ai-${mealType}-${slug}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function roundScore(value: number) {
+  return Number(Math.max(0, Math.min(1, value)).toFixed(2));
+}
+
+function buildScoringMetadata(
+  inputIngredients: string[],
+  usedIngredients: string[],
+  missingIngredients: string[],
+  normalizedMenuFamily: string,
+  priorMeals: MealHistorySnapshot[]
+) {
+  const usedInputCount = usedIngredients.filter((ingredient) => inputIngredients.includes(ingredient)).length;
+  const priorFamilySet = new Set(
+    priorMeals
+      .map((item) => item.menuFamily?.trim())
+      .filter((item): item is string => Boolean(item))
+  );
+
+  return {
+    ingredientUtilizationScore:
+      inputIngredients.length > 0 ? roundScore(usedInputCount / inputIngredients.length) : 0,
+    ingredientCoverageScore:
+      usedIngredients.length > 0 ? roundScore(usedInputCount / usedIngredients.length) : 0,
+    lowMissingIngredientScore: roundScore(1 / (1 + missingIngredients.length)),
+    diversityScore: priorFamilySet.has(normalizedMenuFamily) ? 0.45 : 0.85
+  };
+}
+
+function resolveDescription(
+  mealType: MealType,
+  selectedMenu: string,
+  cookingStyle: string,
+  resolvedMenu: MenuDefinition | null
+) {
+  if (resolvedMenu?.description) {
+    return resolvedMenu.description;
+  }
+
+  return `${MEAL_LABELS[mealType]}에 맞춘 ${selectedMenu} ${cookingStyle} 메뉴`;
+}
+
+function buildMealSnapshot(mealType: MealType, result: MealRecommendation): MealHistorySnapshot {
+  return {
+    mealType,
+    menu: result.name,
+    menuFamily: resolveNormalizedMenuFamily({
+      selectedMenu: result.name,
+      cookingStyle: result.cookingStyle,
+      menuFamily: result.menuFamily
+    }),
+    mainProtein: result.mainProtein
+  };
+}
+
+function buildCandidateMenus(
+  candidates: MealRecommendation[],
+  menuCatalog: MenuDefinition[],
+  mealType: MealType
+) {
+  return candidates.slice(0, MAX_CANDIDATES).map((candidate) => {
+    const resolvedMenu =
+      menuCatalog.find((menu) => menu.id === candidate.id || menu.name === candidate.name) ?? null;
+
+    return {
+      name: candidate.name,
+      menuFamily: resolveNormalizedMenuFamily({
+        selectedMenu: candidate.name,
+        cookingStyle: candidate.cookingStyle,
+        menuFamily: candidate.menuFamily
+      }),
+      mealType,
+      cookingStyle: candidate.cookingStyle,
+      mainProtein: candidate.mainProtein,
+      usedIngredients: candidate.usedIngredients,
+      missingIngredients: candidate.missingIngredients,
+      optionalAddedIngredients: candidate.optionalAddedIngredients,
+      textureGuide: candidate.textureNote,
+      caution: candidate.caution,
+      ageSuitability: {
+        minAgeMonths: resolvedMenu?.minAgeMonths ?? null,
+        maxAgeMonths: resolvedMenu?.maxAgeMonths ?? null
+      }
+    };
+  });
+}
+
 function buildAiRequestPayload(input: {
   child: ChildProfile;
   mealType: MealType;
+  generationMode: "ingredient_first" | "auto_recommend";
   normalizedInputIngredients: string[];
-  selectedResult: MealRecommendation;
+  allowedSupplements: string[];
+  recentHistory: MealHistorySnapshot[];
+  currentRequestSelections: MealHistorySnapshot[];
   candidates: MealRecommendation[];
-  dayContext: Array<{
-    mealType: MealType;
-    menu: string;
-    menuFamily: string | null;
-    mainProtein: string;
-    usedIngredients: string[];
-  }>;
+  rulesFallback: MealRecommendation;
   menuCatalog: MenuDefinition[];
+  ingredientCatalog: IngredientCatalogItem[];
+  attemptNumber: 1 | 2;
+  retryReasons: string[];
 }) {
-  const resolveMenu = (candidate: MealRecommendation) =>
-    input.menuCatalog.find((menu) => menu.id === candidate.id || menu.name === candidate.name) ?? null;
+  const knownIngredients =
+    input.generationMode === "auto_recommend"
+      ? uniqueIngredients(input.ingredientCatalog.map((item) => item.standardKey))
+      : uniqueIngredients([
+          ...input.normalizedInputIngredients,
+          ...input.allowedSupplements,
+          ...PANTRY_BASICS
+        ]);
 
   return {
     promptVersion: AI_PROMPT_VERSION,
+    attemptNumber: input.attemptNumber,
+    retryReasons: [...input.retryReasons],
     child: {
-      childAgeMonths: input.child.ageMonths,
+      ageMonths: input.child.ageMonths,
       birthDate: input.child.birthDate,
       allergies: uniqueIngredients(input.child.allergies)
     },
     mealType: input.mealType,
-    allowAutoSupplement: input.selectedResult.optionalAddedIngredients.length > 0,
-    generationMode:
-      input.selectedResult.inputIngredients.length === 0 ? "auto_recommend" : "ingredient_first",
-    inputStrength: input.selectedResult.inputStrength,
-    normalizedInputIngredients: input.normalizedInputIngredients,
-    userInputIngredients: input.selectedResult.inputIngredients,
-    optionalAddedIngredients: input.selectedResult.optionalAddedIngredients,
-    availableIngredients: uniqueIngredients([
-      ...input.selectedResult.inputIngredients,
-      ...input.selectedResult.optionalAddedIngredients
-    ]),
-    selectedMenu: input.selectedResult.name,
-    expectedMissingIngredients: input.selectedResult.missingIngredients,
-    expectedSubstitutes: mapSubstitutesToItems(input.selectedResult.substitutes),
-    dayContext: input.dayContext,
-    candidateMenus: input.candidates.slice(0, MAX_CANDIDATES).map((candidate) => {
-      const resolvedMenu = resolveMenu(candidate);
-
-      return {
-        name: candidate.name,
-        menuFamily: candidate.menuFamily,
-        mealType: input.mealType,
-        mainProtein: candidate.mainProtein,
-        requiredIngredients: uniqueIngredients([
-          ...(resolvedMenu?.primaryIngredients ?? candidate.usedIngredients),
-          ...candidate.missingIngredients
-        ]),
-        optionalIngredients:
-          resolvedMenu?.optionalIngredients ?? resolvedMenu?.pantryIngredients ?? candidate.optionalAddedIngredients,
-        textureGuide: candidate.textureNote,
-        ageSuitability: {
-          minAgeMonths: resolvedMenu?.minAgeMonths ?? null,
-          maxAgeMonths: resolvedMenu?.maxAgeMonths ?? null
-        },
-        caution: candidate.caution
-      };
-    })
+    generationMode: input.generationMode,
+    normalizedInputIngredients: [...input.normalizedInputIngredients],
+    allowedSupplements: [...input.allowedSupplements],
+    pantryBasics: [...PANTRY_BASICS],
+    knownIngredients,
+    recentHistory: input.recentHistory.map((item) => ({ ...item })),
+    currentRequestSelections: input.currentRequestSelections.map((item) => ({ ...item })),
+    rulesFallback: {
+      selectedMenu: input.rulesFallback.name,
+      cookingStyle: input.rulesFallback.cookingStyle,
+      mainProtein: input.rulesFallback.mainProtein,
+      usedIngredients: input.rulesFallback.usedIngredients,
+      optionalAddedIngredients: input.rulesFallback.optionalAddedIngredients,
+      missingIngredients: input.rulesFallback.missingIngredients,
+      substitutes: input.rulesFallback.substitutes,
+      menuFamily: resolveNormalizedMenuFamily({
+        selectedMenu: input.rulesFallback.name,
+        cookingStyle: input.rulesFallback.cookingStyle,
+        menuFamily: input.rulesFallback.menuFamily
+      })
+    },
+    candidateMenus: buildCandidateMenus(input.candidates, input.menuCatalog, input.mealType)
   };
 }
 
 function buildSystemPrompt() {
   return [
-    "당신은 아이 맞춤 식단 앱의 서버사이드 요약 생성기입니다.",
-    "규칙 기반 추천 엔진이 이미 selectedMenu를 결정했으므로 다른 메뉴를 선택하면 안 됩니다.",
+    "당신은 아이 맞춤 식단 앱의 서버사이드 메뉴 선택기입니다.",
     "반드시 JSON만 반환하세요.",
-    "입력으로 받은 child.childAgeMonths를 기준으로 식감, 조리 난이도, 추천 수준을 판단하세요.",
-    "generationMode가 auto_recommend면 입력 재료 없이 시스템 추천으로 생성된 결과입니다.",
-    "userInputIngredients는 사용자가 직접 입력한 재료이고, optionalAddedIngredients는 시스템이 허용한 보완 재료입니다.",
-    "userInputIngredients, optionalAddedIngredients, expectedMissingIngredients, expectedSubstitutes 범위를 벗어나는 재료를 새로 제안하면 안 됩니다.",
-    "candidateMenus 밖의 새 메뉴를 창작하면 안 됩니다.",
-    "dayContext에 이미 선택된 다른 끼니 정보가 있을 수 있으며, 설명은 그 흐름과 어울리되 selectedMenu는 바꾸지 마세요.",
-    "죽, 스튜, 매시 형태를 과도하게 반복하도록 유도하는 표현은 피하세요.",
-    "selectedMenu는 입력으로 받은 selectedMenu와 정확히 동일해야 합니다.",
-    "영양값과 조리 시간은 시스템 규칙으로 계산하므로 JSON에 calories, protein, cookTimeMinutes, nutritionEstimate를 포함하면 안 됩니다.",
-    "missingIngredients는 입력의 expectedMissingIngredients와 동일하게 유지하세요.",
-    "substitutes는 ingredient와 substitutes 배열을 가진 객체 목록이어야 합니다.",
-    "substitutes의 ingredient와 substitutes 값은 expectedSubstitutes 범위 안에서만 작성하세요.",
-    "추천 문구와 조리법, textureGuide, 주의사항은 입력된 실제 개월수 기준으로 안전하고 적절한 식감에 맞춰 작성하세요.",
-    "알레르기 재료나 위험한 표현은 절대 포함하지 마세요.",
-    "recipeSummary는 정확히 3줄이어야 합니다.",
-    "recipeFull은 5단계 이상 8단계 이하로 작성하세요.",
-    "recipeFull은 보호자가 바로 따라 할 수 있는 수준으로 구체적으로 작성하세요."
+    "한 번의 응답에서 메뉴 선택, 재료 구성, 자연어 설명, 영양/조리시간 추정까지 모두 반환하세요.",
+    "child.ageMonths에 맞는 안전한 식감과 조리 난이도를 우선하세요.",
+    "recentHistory와 currentRequestSelections에 있는 메뉴명과 menuFamily는 가능한 한 피하세요.",
+    "attemptNumber가 2이거나 retryReasons가 있으면 해당 실패 이유를 반드시 피해서 다시 선택하세요.",
+    "ingredient_first에서는 normalizedInputIngredients를 우선 사용하고, 핵심 재료 추가는 allowedSupplements 안에서만 허용하세요.",
+    "ingredient_first에서 allowedSupplements 밖 재료를 usedIngredients나 missingIngredients에 넣으면 안 됩니다.",
+    "auto_recommend에서는 knownIngredients와 pantryBasics 범위 안의 재료만 사용하세요.",
+    "usedIngredients는 실제로 이번 메뉴에 사용하는 재료만 적고, optionalAddedIngredients는 입력 재료가 아닌데 실제로 추가해 사용한 재료만 적으세요.",
+    "missingIngredients는 있으면 더 좋지만 현재 없는 재료만 적고, usedIngredients와 겹치면 안 됩니다.",
+    "substitutes의 ingredient는 missingIngredients 안에 있어야 하며 substitutes 값도 허용 가능한 재료명만 써야 합니다.",
+    "menuFamily는 참고용 힌트로만 쓰고, cookingStyle과 selectedMenu에 맞는 값을 적으세요.",
+    "recipeSummary는 정확히 3줄, recipeFull은 5단계 이상 8단계 이하로 작성하세요.",
+    "recommendation, missingIngredientExplanation, textureGuide, caution, recipeSummary, recipeFull에는 알레르기 재료나 위험한 표현을 포함하지 마세요.",
+    "calories, protein, cookTimeMinutes는 현실적인 이유식/유아식 범위로 추정하세요."
   ].join(" ");
 }
 
-async function requestOpenAiMealCopy(
+async function requestOpenAiMealSelection(
   config: OpenAiConfig,
   payload: ReturnType<typeof buildAiRequestPayload>
 ) {
@@ -593,11 +563,11 @@ async function requestOpenAiMealCopy(
     },
     body: JSON.stringify({
       model: config.model,
-      temperature: 0.3,
+      temperature: 0.7,
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "meal_plan_ai_response",
+          name: "meal_plan_ai_selection_response",
           strict: true,
           schema: AI_RESPONSE_SCHEMA
         }
@@ -638,150 +608,370 @@ async function requestOpenAiMealCopy(
   }
 
   return {
-    parsed: normalizeAiMealResponse(parsed),
+    parsed,
     responsePayload
   };
 }
 
-async function enhanceMealResultWithAi(input: {
+function extractHistorySnapshot(item: MealPlanHistoryItemRow): MealHistorySnapshot | null {
+  if (!MEAL_TYPES.includes(item.meal_type as MealType)) {
+    return null;
+  }
+
+  const mealType = item.meal_type as MealType;
+  const raw = isRecord(item.result_payload_json) ? item.result_payload_json : {};
+  const menuName =
+    typeof item.menu_name === "string" && item.menu_name.trim()
+      ? item.menu_name.trim()
+      : typeof raw.name === "string" && raw.name.trim()
+        ? raw.name.trim()
+        : null;
+
+  if (!menuName) {
+    return null;
+  }
+
+  return {
+    mealType,
+    menu: menuName,
+    menuFamily: resolveNormalizedMenuFamily({
+      selectedMenu: menuName,
+      cookingStyle: typeof raw.cookingStyle === "string" ? raw.cookingStyle : null,
+      menuFamily: typeof raw.menuFamily === "string" ? raw.menuFamily : null
+    }),
+    mainProtein:
+      typeof raw.mainProtein === "string" && raw.mainProtein.trim() ? raw.mainProtein.trim() : "채소"
+  };
+}
+
+async function loadRecentMealHistory(request: Request, childId: string) {
+  const supabase = createSupabaseLogClient(request);
+
+  if (!supabase) {
+    return [] as MealHistorySnapshot[];
+  }
+
+  const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
+  try {
+    const { data, error } = await supabase
+      .from("meal_plans")
+      .select("created_at, meal_plan_items(meal_type, menu_name, result_payload_json)")
+      .eq("child_id", childId)
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).flatMap((row) => {
+      const typedRow = row as MealPlanHistoryRow;
+      return (typedRow.meal_plan_items ?? [])
+        .map((item) => extractHistorySnapshot(item))
+        .filter((item): item is MealHistorySnapshot => Boolean(item));
+    });
+  } catch (error) {
+    console.warn("Failed to load recent meal history", error);
+    return [];
+  }
+}
+
+function buildAiResult(input: {
+  mealType: MealType;
+  child: ChildProfile;
+  normalizedInputIngredients: string[];
+  validatedSelection: ValidatedAiMealSelection;
+  guardedNarrative: ReturnType<typeof guardGeneratedMealContent>;
+  nutrition: ReturnType<typeof validateMealNutrition>;
+  rulesFallback: MealRecommendation;
+  candidates: MealRecommendation[];
+  menuCatalog: MenuDefinition[];
+  priorMeals: MealHistorySnapshot[];
+}) {
+  const resolvedMenu =
+    input.menuCatalog.find((menu) => menu.name === input.validatedSelection.selectedMenu) ?? null;
+
+  return {
+    id: resolvedMenu?.id ?? createGeneratedMenuId(input.mealType, input.validatedSelection.selectedMenu),
+    name: input.validatedSelection.selectedMenu,
+    menuFamily: input.validatedSelection.normalizedMenuFamily,
+    cookingStyle: input.validatedSelection.cookingStyle,
+    mainProtein: input.validatedSelection.mainProtein,
+    description: resolveDescription(
+      input.mealType,
+      input.validatedSelection.selectedMenu,
+      input.validatedSelection.cookingStyle,
+      resolvedMenu
+    ),
+    textureNote:
+      input.validatedSelection.textureGuide ||
+      resolvedMenu?.textureNote ||
+      "아이가 먹기 좋은 부드러운 질감으로 마무리해 주세요.",
+    caution: input.guardedNarrative.caution,
+    recommendationText: input.guardedNarrative.recommendationText,
+    recipeSummary: input.guardedNarrative.recipeSummary,
+    recipeFull: input.guardedNarrative.recipeFull,
+    missingIngredientExplanation: input.guardedNarrative.missingIngredientExplanation,
+    usedIngredients: input.validatedSelection.usedIngredients,
+    missingIngredients: input.validatedSelection.missingIngredients,
+    optionalAddedIngredients: input.validatedSelection.optionalAddedIngredients,
+    substitutes: input.validatedSelection.substitutes,
+    excludedAllergyIngredients: input.rulesFallback.excludedAllergyIngredients,
+    alternatives: input.candidates
+      .map((candidate) => candidate.name)
+      .filter((name) => name !== input.validatedSelection.selectedMenu)
+      .slice(0, 2),
+    inputIngredients: input.normalizedInputIngredients,
+    allIngredients: uniqueIngredients([
+      ...input.validatedSelection.usedIngredients,
+      ...input.validatedSelection.missingIngredients,
+      ...input.validatedSelection.optionalAddedIngredients
+    ]),
+    nutritionEstimate: input.nutrition.nutritionEstimate,
+    scoringMetadata: buildScoringMetadata(
+      input.normalizedInputIngredients,
+      input.validatedSelection.usedIngredients,
+      input.validatedSelection.missingIngredients,
+      input.validatedSelection.normalizedMenuFamily,
+      input.priorMeals
+    ),
+    inputStrength: input.rulesFallback.inputStrength,
+    calories: input.nutrition.calories,
+    protein: input.nutrition.protein,
+    cookTimeMinutes: input.nutrition.cookTimeMinutes,
+    promptVersion: AI_PROMPT_VERSION,
+    isFallback: false,
+    selectionSource: "ai",
+    nutritionSource: input.nutrition.nutritionSource
+  } satisfies MealRecommendation;
+}
+
+function getFallbackNoticeMessage(mealType: MealType) {
+  return `${MEAL_LABELS[mealType]}은 정확히 맞는 메뉴가 적어 기본 대체 메뉴를 추천했어요.`;
+}
+
+function filterNotices(
+  notices: Array<{ tone: "warning" | "danger" | "success"; message: string }>,
+  aiSelectedMeals: Set<MealType>
+) {
+  return notices.filter((notice) => {
+    return ![...aiSelectedMeals].some((mealType) => notice.message === getFallbackNoticeMessage(mealType));
+  });
+}
+
+async function generateMealWithAi(input: {
   request: Request;
   child: ChildProfile;
   mealType: MealType;
+  generationMode: "ingredient_first" | "auto_recommend";
   normalizedInputIngredients: string[];
-  selectedResult: MealRecommendation;
+  allowedSupplements: string[];
+  recentHistory: MealHistorySnapshot[];
+  currentRequestSelections: MealHistorySnapshot[];
   candidates: MealRecommendation[];
-  dayContext: Array<{
-    mealType: MealType;
-    menu: string;
-    menuFamily: string | null;
-    mainProtein: string;
-    usedIngredients: string[];
-  }>;
+  rulesFallback: MealRecommendation;
   menuCatalog: MenuDefinition[];
+  ingredientCatalog: IngredientCatalogItem[];
   openAiConfig: OpenAiConfig | null;
 }): Promise<AiGenerationOutcome> {
-  const requestPayload = buildAiRequestPayload({
-    child: input.child,
+  const aggregatedRequestPayload = {
+    promptVersion: AI_PROMPT_VERSION,
     mealType: input.mealType,
-    normalizedInputIngredients: input.normalizedInputIngredients,
-    selectedResult: input.selectedResult,
-    candidates: input.candidates,
-    dayContext: input.dayContext,
-    menuCatalog: input.menuCatalog
-  });
+    generationMode: input.generationMode,
+    normalizedInputIngredients: [...input.normalizedInputIngredients],
+    allowedSupplements: [...input.allowedSupplements],
+    recentHistory: input.recentHistory.map((item) => ({ ...item })),
+    currentRequestSelections: input.currentRequestSelections.map((item) => ({ ...item }))
+  };
 
   if (!input.openAiConfig) {
     return {
-      result: input.selectedResult,
+      result: input.rulesFallback,
       validationStatus: "skipped-no-openai-config",
       fallbackUsed: true,
-      requestPayload,
+      requestPayload: aggregatedRequestPayload,
       responsePayload: {
-        reason: "OPENAI_API_KEY is not configured"
+        reason: "OPENAI_API_KEY is not configured",
+        attempts: []
       }
     };
   }
 
-  if (input.candidates.length === 0 || input.selectedResult.id.startsWith("fallback-")) {
-    return {
-      result: input.selectedResult,
-      validationStatus: "skipped-no-ranked-candidates",
-      fallbackUsed: true,
-      requestPayload,
-      responsePayload: {
-        reason: "No ranked candidates available for AI enrichment"
-      }
-    };
-  }
+  const attempts: AiAttemptRecord[] = [];
+  let retryReasons: string[] = [];
 
-  try {
-    const { parsed, responsePayload } = await requestOpenAiMealCopy(input.openAiConfig, requestPayload);
-
-    if (
-      !validateAiStructuredFields(
-        parsed,
-        input.selectedResult,
-        input.candidates,
-        input.child.allergies
-      )
-    ) {
-      return {
-        result: input.selectedResult,
-        validationStatus: "fallback-invalid-structured-fields",
-        fallbackUsed: true,
-        requestPayload,
-        responsePayload
-      };
-    }
-
-    const guardedNarrative = guardGeneratedMealContent({
-      generated: {
-        recommendationText: parsed.recommendation,
-        recipeSummary: parsed.recipeSummary,
-        recipeFull: parsed.recipeFull,
-        missingIngredientExplanation: parsed.missingIngredientExplanation,
-        caution: parsed.caution,
-        promptVersion: AI_PROMPT_VERSION,
-        isFallback: false
-      },
+  for (let index = 0; index < MAX_ATTEMPTS_PER_MEAL; index += 1) {
+    const attemptNumber = (index + 1) as 1 | 2;
+    const requestPayload = buildAiRequestPayload({
+      child: input.child,
       mealType: input.mealType,
-      ageMonths: input.child.ageMonths,
-      menuName: input.selectedResult.name,
-      cookingStyle: input.selectedResult.cookingStyle,
-      usedIngredients: input.selectedResult.usedIngredients,
-      missingIngredients: input.selectedResult.missingIngredients,
-      recipeSummary: input.selectedResult.recipeSummary,
-      caution: input.selectedResult.caution,
-      allergies: input.child.allergies
+      generationMode: input.generationMode,
+      normalizedInputIngredients: input.normalizedInputIngredients,
+      allowedSupplements: input.allowedSupplements,
+      recentHistory: input.recentHistory,
+      currentRequestSelections: input.currentRequestSelections,
+      candidates: input.candidates,
+      rulesFallback: input.rulesFallback,
+      menuCatalog: input.menuCatalog,
+      ingredientCatalog: input.ingredientCatalog,
+      attemptNumber,
+      retryReasons
     });
 
-    if (guardedNarrative.isFallback) {
-      return {
-        result: input.selectedResult,
-        validationStatus: "fallback-guard-rejected",
-        fallbackUsed: true,
-        requestPayload,
-        responsePayload
-      };
-    }
+    try {
+      const { parsed, responsePayload } = await requestOpenAiMealSelection(input.openAiConfig, requestPayload);
+      const validation = validateAiMealSelection({
+        response: parsed,
+        mealType: input.mealType,
+        generationMode: input.generationMode,
+        ageMonths: input.child.ageMonths,
+        allergies: input.child.allergies,
+        inputIngredients: input.normalizedInputIngredients,
+        allowedSupplements: input.allowedSupplements,
+        priorMeals: [...input.recentHistory, ...input.currentRequestSelections],
+        ingredientCatalog: input.ingredientCatalog,
+        attemptNumber
+      });
 
-    return {
-      result: {
-        ...input.selectedResult,
-        menuFamily: parsed.menuFamily ?? input.selectedResult.menuFamily,
-        textureNote: parsed.textureGuide || input.selectedResult.textureNote,
-        recommendationText: guardedNarrative.recommendationText,
-        recipeSummary: guardedNarrative.recipeSummary,
-        recipeFull: guardedNarrative.recipeFull,
-        missingIngredientExplanation: guardedNarrative.missingIngredientExplanation,
-        caution: guardedNarrative.caution,
-        optionalAddedIngredients:
-          parsed.optionalAddedIngredients.length > 0
-            ? parsed.optionalAddedIngredients
-            : input.selectedResult.optionalAddedIngredients,
-        nutritionEstimate: input.selectedResult.nutritionEstimate,
-        calories: input.selectedResult.calories,
-        protein: input.selectedResult.protein,
-        cookTimeMinutes: input.selectedResult.cookTimeMinutes,
-        promptVersion: AI_PROMPT_VERSION,
-        isFallback: false
-      },
-      validationStatus: "accepted",
-      fallbackUsed: false,
-      requestPayload,
-      responsePayload
-    };
-  } catch (error) {
-    return {
-      result: input.selectedResult,
-      validationStatus: "fallback-openai-error",
-      fallbackUsed: true,
-      requestPayload,
-      responsePayload: {
-        error: error instanceof Error ? error.message : "Unknown OpenAI error"
+      if (!validation.ok) {
+        attempts.push({
+          attemptNumber,
+          requestPayload,
+          responsePayload,
+          validationStatus: "rejected-validation",
+          failureReasons: validation.reasons
+        });
+        retryReasons = validation.reasons;
+        continue;
       }
-    };
+
+      const guardedNarrative = guardGeneratedMealContent({
+        generated: {
+          recommendationText: validation.normalized.recommendation,
+          recipeSummary: validation.normalized.recipeSummary,
+          recipeFull: validation.normalized.recipeFull,
+          missingIngredientExplanation: validation.normalized.missingIngredientExplanation,
+          caution: validation.normalized.caution,
+          promptVersion: AI_PROMPT_VERSION,
+          isFallback: false
+        },
+        mealType: input.mealType,
+        ageMonths: input.child.ageMonths,
+        menuName: validation.normalized.selectedMenu,
+        cookingStyle: validation.normalized.cookingStyle,
+        usedIngredients: validation.normalized.usedIngredients,
+        missingIngredients: validation.normalized.missingIngredients,
+        recipeSummary: validation.normalized.recipeSummary,
+        caution: validation.normalized.caution,
+        allergies: input.child.allergies
+      });
+
+      if (guardedNarrative.isFallback) {
+        const failureReasons = ["narrative safety guard rejected the AI response"];
+        attempts.push({
+          attemptNumber,
+          requestPayload,
+          responsePayload,
+          validationStatus: "rejected-guard",
+          failureReasons
+        });
+        retryReasons = failureReasons;
+        continue;
+      }
+
+      const nutrition = validateMealNutrition({
+        mealType: input.mealType,
+        ageMonths: input.child.ageMonths,
+        menuFamily: validation.normalized.normalizedMenuFamily,
+        usedIngredients: validation.normalized.usedIngredients,
+        missingIngredients: validation.normalized.missingIngredients,
+        optionalAddedIngredients: validation.normalized.optionalAddedIngredients,
+        calories: validation.normalized.calories,
+        protein: validation.normalized.protein,
+        cookTimeMinutes: validation.normalized.cookTimeMinutes
+      });
+
+      const result = buildAiResult({
+        mealType: input.mealType,
+        child: input.child,
+        normalizedInputIngredients: input.normalizedInputIngredients,
+        validatedSelection: validation.normalized,
+        guardedNarrative,
+        nutrition,
+        rulesFallback: input.rulesFallback,
+        candidates: input.candidates,
+        menuCatalog: input.menuCatalog,
+        priorMeals: [...input.recentHistory, ...input.currentRequestSelections]
+      });
+
+      attempts.push({
+        attemptNumber,
+        requestPayload,
+        responsePayload,
+        validationStatus: "accepted",
+        failureReasons: []
+      });
+
+      return {
+        result,
+        validationStatus: `accepted-attempt-${attemptNumber}`,
+        fallbackUsed: false,
+        requestPayload: {
+          ...aggregatedRequestPayload,
+          attempts: attempts.map((attempt) => ({
+            attemptNumber: attempt.attemptNumber,
+            requestPayload: attempt.requestPayload
+          }))
+        },
+        responsePayload: {
+          attempts: attempts.map((attempt) => ({
+            attemptNumber: attempt.attemptNumber,
+            validationStatus: attempt.validationStatus,
+            failureReasons: attempt.failureReasons,
+            responsePayload: attempt.responsePayload
+          })),
+          finalSelectionSource: "ai",
+          finalNutritionSource: result.nutritionSource
+        }
+      };
+    } catch (error) {
+      attempts.push({
+        attemptNumber,
+        requestPayload,
+        responsePayload: {
+          error: error instanceof Error ? error.message : "Unknown OpenAI error"
+        },
+        validationStatus: "openai-error",
+        failureReasons: [error instanceof Error ? error.message : "Unknown OpenAI error"]
+      });
+      break;
+    }
   }
+
+  return {
+    result: input.rulesFallback,
+    validationStatus:
+      attempts.length > 0 ? attempts[attempts.length - 1].validationStatus : "fallback-no-attempt",
+    fallbackUsed: true,
+    requestPayload: {
+      ...aggregatedRequestPayload,
+      attempts: attempts.map((attempt) => ({
+        attemptNumber: attempt.attemptNumber,
+        requestPayload: attempt.requestPayload
+      }))
+    },
+    responsePayload: {
+      attempts: attempts.map((attempt) => ({
+        attemptNumber: attempt.attemptNumber,
+        validationStatus: attempt.validationStatus,
+        failureReasons: attempt.failureReasons,
+        responsePayload: attempt.responsePayload
+      })),
+      finalSelectionSource: "rules_fallback",
+      finalNutritionSource: input.rulesFallback.nutritionSource ?? "system_fallback"
+    }
+  };
 }
 
 serve(async (request) => {
@@ -808,7 +998,10 @@ serve(async (request) => {
       lunch: uniqueIngredients((payload.mealInputs.lunch ?? []).map(normalizeIngredient)),
       dinner: uniqueIngredients((payload.mealInputs.dinner ?? []).map(normalizeIngredient))
     };
-    const menuCatalog = await loadMenuCatalog();
+    const [menuCatalog, ingredientCatalog] = await Promise.all([
+      loadMenuCatalog(),
+      loadIngredientCatalog()
+    ]);
     const { plan: basePlan, candidates } = buildDailyMealPlanWithCandidates({
       child: payload.child,
       mealInputs: normalizedMealInputs,
@@ -817,30 +1010,37 @@ serve(async (request) => {
       menuCatalog
     });
     const openAiConfig = getOpenAiConfig();
+    const recentHistory = await loadRecentMealHistory(request, payload.child.id);
     const results = { ...basePlan.results };
+    const currentRequestSelections: MealHistorySnapshot[] = [];
+    const aiSelectedMeals = new Set<MealType>();
 
     for (const mealType of MEAL_TYPES) {
-      const dayContext = MEAL_TYPES.filter((item) => item !== mealType).map((item) => ({
-        mealType: item,
-        menu: results[item].name,
-        menuFamily: results[item].menuFamily,
-        mainProtein: results[item].mainProtein,
-        usedIngredients: results[item].usedIngredients
-      }));
-
-      const outcome = await enhanceMealResultWithAi({
+      const rulesFallback = basePlan.results[mealType];
+      const generationMode =
+        normalizedMealInputs[mealType].length > 0 ? "ingredient_first" : "auto_recommend";
+      const outcome = await generateMealWithAi({
         request,
         child: payload.child,
         mealType,
+        generationMode,
         normalizedInputIngredients: normalizedMealInputs[mealType],
-        selectedResult: basePlan.results[mealType],
+        allowedSupplements: rulesFallback.optionalAddedIngredients,
+        recentHistory,
+        currentRequestSelections,
         candidates: candidates[mealType] ?? [],
-        dayContext,
+        rulesFallback,
         menuCatalog,
+        ingredientCatalog,
         openAiConfig
       });
 
       results[mealType] = outcome.result;
+      currentRequestSelections.push(buildMealSnapshot(mealType, outcome.result));
+
+      if (outcome.result.selectionSource === "ai") {
+        aiSelectedMeals.add(mealType);
+      }
 
       await writeAiGenerationLog(
         request,
@@ -854,6 +1054,7 @@ serve(async (request) => {
 
     return jsonResponse({
       ...basePlan,
+      notices: filterNotices(basePlan.notices, aiSelectedMeals),
       results
     });
   } catch (error) {

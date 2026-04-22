@@ -175,6 +175,8 @@ describe("buildDailyMealPlanWithCandidates", () => {
     expect(plan.results.breakfast.recipeSummary).toHaveLength(3);
     expect(plan.results.breakfast.recipeFull).toHaveLength(5);
     expect(plan.results.breakfast.inputStrength).toBe("medium");
+    expect(plan.results.breakfast.selectionSource).toBe("rules_fallback");
+    expect(plan.results.breakfast.nutritionSource).toBe("system_fallback");
     expect(plan.generationMode).toBe("ingredient_first");
     expect(plan.allowAutoSupplement).toBe(true);
   });

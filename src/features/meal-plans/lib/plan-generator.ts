@@ -17,7 +17,8 @@ import {
 import {
   DEFAULT_SUBSTITUTES,
   MEAL_LABELS,
-  MENU_CATALOG
+  MENU_CATALOG,
+  resolveNormalizedMenuFamily
 } from "../../menus/data/menu-catalog.ts";
 import { deriveAgeMonthsFromBirthDate } from "../../children/lib/profile-date-utils.ts";
 import { guardGeneratedMealContent } from "./ai-response-guard.ts";
@@ -427,7 +428,7 @@ function buildFallbackRecommendation(
   return {
     id: `fallback-${mealType}`,
     name: `${primary} ${secondary} ${cookingStyle}`,
-    menuFamily: cookingStyle,
+    menuFamily: resolveNormalizedMenuFamily({ cookingStyle }),
     cookingStyle,
     mainProtein: "맞춤형",
     description: `${MEAL_LABELS[mealType]} 입력 재료를 바탕으로 구성한 기본 대체 메뉴`,
@@ -455,7 +456,9 @@ function buildFallbackRecommendation(
     inputStrength: mealContext.inputStrength,
     ...nutrition,
     promptVersion: narrative.promptVersion,
-    isFallback: true
+    isFallback: true,
+    selectionSource: "rules_fallback",
+    nutritionSource: "system_fallback"
   } satisfies MealRecommendation;
 }
 
@@ -556,7 +559,9 @@ function buildRecommendation(
     inputStrength: mealContext.inputStrength,
     ...nutrition,
     promptVersion: guardedNarrative.promptVersion,
-    isFallback: guardedNarrative.isFallback
+    isFallback: guardedNarrative.isFallback,
+    selectionSource: "rules_fallback",
+    nutritionSource: "system_fallback"
   } satisfies MealRecommendation;
 }
 

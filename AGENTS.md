@@ -173,6 +173,7 @@ localStorage는 아래만 허용합니다.
 - 메뉴 기준 데이터는 DB와 seed를 기준으로 관리한다.
 - 하루 식단은 `meal_plans`, 끼니별 결과는 `meal_plan_items`에 저장한다.
 - 부족 재료, 대체재, AI 추천 문구, 조리법 요약, fallback 여부, prompt version은 항상 저장한다.
+- `selectionSource`, `nutritionSource` 같은 생성 메타는 `result_payload_json`으로 round-trip 가능해야 한다.
 
 보안 규칙:
 
@@ -212,14 +213,9 @@ localStorage는 아래만 허용합니다.
 
 ### 역할 경계
 
-- AI는 메뉴를 선택하지 않는다.
-- 메뉴 후보 선택은 규칙 기반으로 먼저 수행한다.
-- AI는 아래만 생성한다.
-  - 추천 문구
-  - 부족 재료 설명
-  - 대체재 표현
-  - 3줄 조리법
-  - 주의사항
+- AI는 서버에서 끼니별 메뉴를 선택하고, 자연어 결과와 영양/시간 추정까지 함께 생성한다.
+- 규칙 기반 엔진은 삭제하지 않고 fallback 경로와 참고 후보 생성기로 유지한다.
+- 클라이언트에서 OpenAI를 직접 호출하지 않는다.
 
 ### 입력 규칙
 
@@ -229,35 +225,50 @@ AI 요청에는 아래 정보가 포함되어야 한다.
 - 아이 알레르기
 - 끼니 타입
 - 정규화된 입력 재료
-- 규칙 기반으로 선택된 메뉴
-- 부족 재료
-- 허용된 대체재
+- 최근 3일 식단 이력
+- 현재 요청에서 이미 생성된 오늘 결과
+- `ingredient_first`인 경우 허용된 보완 재료
+- `auto_recommend`인 경우 사용 가능한 표준 재료 집합
 - 후보 메뉴 목록
-- 식감/주의 정보
+- 규칙 기반 fallback 메뉴
 
 ### 출력 규칙
 
 AI는 구조화된 JSON으로 아래 필드를 반환해야 한다.
 
 - `selectedMenu`
+- `cookingStyle`
+- `mainProtein`
+- `usedIngredients`
+- `optionalAddedIngredients`
 - `recommendation`
 - `missingIngredients`
 - `missingIngredientExplanation`
 - `substitutes`
-- `recipe`
+- `recipeSummary`
+- `recipeFull`
+- `textureGuide`
 - `caution`
+- `calories`
+- `protein`
+- `cookTimeMinutes`
 
 ### 검증 규칙
 
 아래 조건을 통과해야만 AI 결과를 사용한다.
 
 - JSON 파싱 가능
-- `selectedMenu`가 미리 선택된 메뉴와 동일
-- `missingIngredients`가 백엔드 계산과 동일
-- 대체재가 허용 범위 안에 있음
-- 알레르기 재료 미포함
+- 연령/알레르기 위반 없음
 - 위험 표현 없음
-- 조리법이 짧고 12개월 기준으로 안전함
+- `recipeSummary`는 3줄, `recipeFull`은 5~8단계
+- `usedIngredients`, `optionalAddedIngredients`, `missingIngredients`, `substitutes`가 서로 모순되지 않음
+- `ingredient_first`에서는 `usedIngredients`와 `optionalAddedIngredients`가 `입력 재료 + 허용 보완 재료 + pantry basics` 범위를 벗어나면 안 된다.
+- `auto_recommend`에서는 재료명이 서버가 아는 표준 재료 또는 pantry basics 안에 있어야 한다.
+- 최근 3일 이력과 현재 요청의 earlier meal과 exact menu가 중복되면 안 된다.
+- 첫 시도에서는 menu family 중복도 피해야 한다.
+- 영양/조리시간은 시스템 추정과 허용 오차 안에서만 AI 값을 사용한다.
+- 허용 오차를 넘으면 `nutritionSource`는 `system_fallback`으로 저장한다.
+- 알레르기 재료 미포함
 
 ### fallback 규칙
 
@@ -265,8 +276,9 @@ AI는 구조화된 JSON으로 아래 필드를 반환해야 한다.
 
 - OpenAI 설정 없음
 - OpenAI 호출 실패
-- 구조화 응답 검증 실패
+- 1차/2차 구조화 응답 검증 실패
 - 안전성 가드 실패
+- 최근 이력 중복을 2차 재시도에서도 피하지 못함
 
 원칙:
 

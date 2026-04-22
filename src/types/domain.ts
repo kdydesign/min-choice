@@ -11,6 +11,12 @@ export type InputStrength = (typeof INPUT_STRENGTH_LEVELS)[number];
 export const NUTRITION_CONFIDENCE_LEVELS = ["low", "medium", "high"] as const;
 export type NutritionConfidence = (typeof NUTRITION_CONFIDENCE_LEVELS)[number];
 
+export const SELECTION_SOURCES = ["ai", "rules_fallback"] as const;
+export type SelectionSource = (typeof SELECTION_SOURCES)[number];
+
+export const NUTRITION_SOURCES = ["ai_validated", "system_fallback"] as const;
+export type NutritionSource = (typeof NUTRITION_SOURCES)[number];
+
 export type NoticeTone = "warning" | "danger" | "success";
 
 export interface PlanNotice {
@@ -121,6 +127,8 @@ export interface MealRecommendation {
   cookTimeMinutes: number;
   promptVersion: string;
   isFallback: boolean;
+  selectionSource?: SelectionSource;
+  nutritionSource?: NutritionSource;
 }
 
 export interface DailyMealPlan {

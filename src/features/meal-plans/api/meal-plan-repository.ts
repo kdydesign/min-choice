@@ -14,7 +14,8 @@ import {
   getSupabaseCurrentUserId
 } from "../../auth/api/supabase-bootstrap-service";
 import {
-  getMenuDefinitionByKey
+  getMenuDefinitionByKey,
+  resolveNormalizedMenuFamily
 } from "../../menus/data/menu-catalog";
 import {
   buildMealInputRows,
@@ -169,6 +170,23 @@ function parseMealRecommendation(
     id: typeof raw.id === "string" ? raw.id : null,
     name: typeof raw.name === "string" ? raw.name : null
   });
+  const hydratedName =
+    typeof raw.name === "string" && raw.name
+      ? raw.name
+      : typeof storedItem?.menu_name === "string" && storedItem.menu_name
+        ? storedItem.menu_name
+        : `${mealType} 추천`;
+  const hydratedCookingStyle = typeof raw.cookingStyle === "string" ? raw.cookingStyle : "추천";
+  const hydratedMenuFamily = resolveNormalizedMenuFamily({
+    selectedMenu: hydratedName,
+    cookingStyle: hydratedCookingStyle,
+    menuFamily:
+      typeof raw.menuFamily === "string" && raw.menuFamily.trim()
+        ? raw.menuFamily.trim()
+        : typeof storedItem?.menu_family === "string" && storedItem.menu_family.trim()
+          ? storedItem.menu_family.trim()
+          : menuDefinition?.menuFamily ?? null
+  });
   const recipeSummary = parseStringArray(raw.recipeSummary);
   const recipeSummaryFromRow = parseStringArray(storedItem?.recipe_summary_json);
   const recipeFull = parseStringArray(raw.recipeFull);
@@ -203,12 +221,7 @@ function parseMealRecommendation(
   const systemNutrition = applyNutritionEstimateToRecommendation({
     mealType,
     ageMonths: getNutritionFallbackAgeMonths(menuDefinition),
-    menuFamily:
-      typeof raw.menuFamily === "string" && raw.menuFamily.trim()
-        ? raw.menuFamily.trim()
-        : typeof storedItem?.menu_family === "string" && storedItem.menu_family.trim()
-          ? storedItem.menu_family.trim()
-          : menuDefinition?.menuFamily ?? null,
+    menuFamily: hydratedMenuFamily,
     menu: menuDefinition,
     usedIngredients: hydratedUsedIngredients,
     missingIngredients: hydratedMissingIngredients,
@@ -220,19 +233,9 @@ function parseMealRecommendation(
 
   return {
     id: typeof raw.id === "string" && raw.id ? raw.id : `saved-${mealType}`,
-    name:
-      typeof raw.name === "string" && raw.name
-        ? raw.name
-        : typeof storedItem?.menu_name === "string" && storedItem.menu_name
-          ? storedItem.menu_name
-          : `${mealType} 추천`,
-    menuFamily:
-      typeof raw.menuFamily === "string" && raw.menuFamily.trim()
-        ? raw.menuFamily.trim()
-        : typeof storedItem?.menu_family === "string" && storedItem.menu_family.trim()
-          ? storedItem.menu_family.trim()
-          : menuDefinition?.menuFamily ?? null,
-    cookingStyle: typeof raw.cookingStyle === "string" ? raw.cookingStyle : "추천",
+    name: hydratedName,
+    menuFamily: hydratedMenuFamily,
+    cookingStyle: hydratedCookingStyle,
     mainProtein: typeof raw.mainProtein === "string" ? raw.mainProtein : "맞춤형",
     description: typeof raw.description === "string" ? raw.description : "저장된 식단 추천",
     textureNote:
@@ -353,7 +356,15 @@ function parseMealRecommendation(
         ? raw.isFallback
         : typeof storedItem?.is_fallback === "boolean"
           ? storedItem.is_fallback
-          : false
+          : false,
+    selectionSource:
+      raw.selectionSource === "ai" || raw.selectionSource === "rules_fallback"
+        ? raw.selectionSource
+        : "rules_fallback",
+    nutritionSource:
+      raw.nutritionSource === "ai_validated" || raw.nutritionSource === "system_fallback"
+        ? raw.nutritionSource
+        : "system_fallback"
   };
 }
 

@@ -28,36 +28,74 @@ export const DEFAULT_MEAL_METRICS = {
   dinner: { calories: 220, protein: 10, cookTimeMinutes: 20 }
 } as const;
 
-export function inferMenuFamily(cookingStyle: string) {
-  switch (cookingStyle) {
-    case "죽":
-      return "porridge";
-    case "리조또":
-      return "risotto";
-    case "덮밥":
-      return "rice_bowl";
-    case "패티":
-      return "patty";
-    case "찜":
-      return "steamed";
-    case "스크램블":
-      return "omelet";
-    case "볶음밥":
-      return "soft_stir";
-    case "무른밥":
-      return "soft_stir";
-    case "매시":
-      return "mash";
-    case "핑거푸드":
-      return "finger_food";
-    case "스튜":
-      return "stew";
-    default:
-      return "soft_stir";
+export const MENU_FAMILY_BY_STYLE: Record<string, string> = {
+  죽: "porridge",
+  리조또: "risotto",
+  덮밥: "rice_bowl",
+  패티: "patty",
+  찜: "steamed",
+  스크램블: "omelet",
+  볶음밥: "soft_stir",
+  무른밥: "soft_stir",
+  매시: "mash",
+  핑거푸드: "finger_food",
+  스튜: "stew"
+};
+
+const MENU_FAMILY_KEYWORDS = [
+  { keyword: "리조또", family: "risotto" },
+  { keyword: "덮밥", family: "rice_bowl" },
+  { keyword: "볶음밥", family: "soft_stir" },
+  { keyword: "무른밥", family: "soft_stir" },
+  { keyword: "죽", family: "porridge" },
+  { keyword: "패티", family: "patty" },
+  { keyword: "찜", family: "steamed" },
+  { keyword: "스크램블", family: "omelet" },
+  { keyword: "매시", family: "mash" },
+  { keyword: "핑거푸드", family: "finger_food" },
+  { keyword: "스튜", family: "stew" }
+] as const;
+
+function findKnownMenuFamily(value: string | null | undefined) {
+  if (!value) {
+    return null;
   }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (MENU_FAMILY_BY_STYLE[trimmed]) {
+    return MENU_FAMILY_BY_STYLE[trimmed];
+  }
+
+  if (
+    [
+      "porridge",
+      "risotto",
+      "rice_bowl",
+      "patty",
+      "steamed",
+      "omelet",
+      "soft_stir",
+      "finger_food",
+      "mash",
+      "stew"
+    ].includes(trimmed)
+  ) {
+    return trimmed;
+  }
+
+  return MENU_FAMILY_KEYWORDS.find((item) => trimmed.includes(item.keyword))?.family ?? null;
 }
 
-function getDefaultAgeRange(menuFamily: string) {
+export function inferMenuFamily(cookingStyle: string) {
+  return findKnownMenuFamily(cookingStyle) ?? "soft_stir";
+}
+
+export function getDefaultAgeRange(menuFamily: string) {
   switch (menuFamily) {
     case "porridge":
       return { minAgeMonths: 6, maxAgeMonths: 18 };
@@ -82,6 +120,19 @@ function getDefaultAgeRange(menuFamily: string) {
     default:
       return { minAgeMonths: 10, maxAgeMonths: 36 };
   }
+}
+
+export function resolveNormalizedMenuFamily(input: {
+  cookingStyle?: string | null;
+  selectedMenu?: string | null;
+  menuFamily?: string | null;
+}) {
+  return (
+    findKnownMenuFamily(input.cookingStyle) ??
+    findKnownMenuFamily(input.selectedMenu) ??
+    findKnownMenuFamily(input.menuFamily) ??
+    "custom"
+  );
 }
 
 function withMenuSeedDefaults(menu: MenuDefinition): MenuDefinition {

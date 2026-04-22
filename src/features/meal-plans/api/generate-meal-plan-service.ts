@@ -4,7 +4,7 @@ import { deriveAgeMonthsFromBirthDate } from "../../children/lib/profile-date-ut
 import { normalizeIngredients } from "../../ingredients/api/normalize-ingredients-service";
 import { guardGeneratedMealContent } from "../lib/ai-response-guard";
 import { buildDailyMealPlan, isTooSoftCookingStyleForAge } from "../lib/plan-generator";
-import { getMenuDefinitionByKey } from "../../menus/data/menu-catalog";
+import { getMenuDefinitionByKey, resolveNormalizedMenuFamily } from "../../menus/data/menu-catalog";
 import { applyNutritionEstimateToRecommendation } from "../lib/nutrition-estimate";
 import type { GenerateMealPlanPayload } from "../types/generation-contract";
 
@@ -59,6 +59,11 @@ function normalizeMealRecommendation(
   meal: DailyMealPlan["results"][MealType]
 ) {
   const menuDefinition = getMenuDefinitionByKey({ id: meal.id, name: meal.name });
+  const resolvedMenuFamily = resolveNormalizedMenuFamily({
+    selectedMenu: meal.name,
+    cookingStyle: meal.cookingStyle,
+    menuFamily: meal.menuFamily ?? menuDefinition?.menuFamily ?? null
+  });
   const guardedNarrative = guardGeneratedMealContent({
     generated: {
       recommendationText: meal.recommendationText,
@@ -81,7 +86,7 @@ function normalizeMealRecommendation(
   const nutrition = applyNutritionEstimateToRecommendation({
     mealType,
     ageMonths: child.ageMonths,
-    menuFamily: meal.menuFamily ?? menuDefinition?.menuFamily ?? meal.cookingStyle,
+    menuFamily: resolvedMenuFamily,
     menu: menuDefinition,
     usedIngredients: meal.usedIngredients,
     missingIngredients: meal.missingIngredients,
@@ -90,7 +95,7 @@ function normalizeMealRecommendation(
 
   return {
     ...meal,
-    menuFamily: meal.menuFamily ?? menuDefinition?.menuFamily ?? meal.cookingStyle,
+    menuFamily: resolvedMenuFamily,
     recommendationText: guardedNarrative.recommendationText,
     recipeSummary: guardedNarrative.recipeSummary,
     recipeFull:
@@ -112,6 +117,8 @@ function normalizeMealRecommendation(
     inputStrength: meal.inputStrength ?? (meal.inputIngredients.length === 0 ? "none" : "medium"),
     promptVersion: guardedNarrative.promptVersion,
     isFallback: meal.isFallback || guardedNarrative.isFallback,
+    selectionSource: meal.selectionSource ?? "rules_fallback",
+    nutritionSource: meal.nutritionSource ?? "system_fallback",
     calories: Number.isFinite(meal.calories) && meal.calories > 0 ? meal.calories : nutrition.calories,
     protein: Number.isFinite(meal.protein) && meal.protein > 0 ? meal.protein : nutrition.protein,
     cookTimeMinutes:

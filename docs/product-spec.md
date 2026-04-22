@@ -204,20 +204,22 @@
   - 조리법 요약
   - fallback 여부
   - prompt version
+  - `selectionSource`
+  - `nutritionSource`
 
 ## 9. AI 처리 아키텍처
 
 ### 9.1 기본 원칙
 
-- 메뉴 선택은 규칙 기반 추천 엔진이 수행한다.
-- AI는 사용자에게 보여줄 자연어 결과만 생성한다.
+- 메뉴 선택은 서버사이드 AI가 수행한다.
+- 규칙 기반 추천 엔진은 fallback 메뉴와 참고 후보를 만든다.
 - AI 결과는 검증 후에만 저장 및 출력한다.
 - AI가 실패해도 서비스는 fallback으로 정상 동작한다.
 
 ### 9.2 호출 단위
 
 - AI 호출은 **끼니별로 처리한다**.
-- 하루 식단 생성 시 OpenAI 요청은 최대 3회 발생한다.
+- 하루 식단 생성 시 OpenAI 요청은 기본 3회, 재시도 포함 최대 6회 발생한다.
   - 아침
   - 점심
   - 저녁
@@ -231,38 +233,45 @@
 - `child.allergies`
 - `mealType`
 - `normalizedInputIngredients`
-- `selectedMenu`
-- `expectedMissingIngredients`
-- `expectedSubstitutes`
-- `candidates`
-  - 이름
-  - 조리 스타일
-  - 주 단백질
-  - 사용 재료
-  - 부족 재료
-  - 대체재
-  - 식감 메모
-  - 주의사항
+- 최근 3일 식단 이력
+- 현재 요청에서 이미 생성된 오늘 결과
+- `ingredient_first`용 `allowedSupplements`
+- `auto_recommend`용 `knownIngredients`
+- 규칙 기반 fallback 메뉴
+- 참고 후보 메뉴 목록
 
 ### 9.4 AI 출력
 
 AI는 구조화된 JSON으로 아래를 반환해야 한다.
 
 - `selectedMenu`
+- `cookingStyle`
+- `mainProtein`
+- `usedIngredients`
+- `optionalAddedIngredients`
 - `recommendation`
 - `missingIngredients`
 - `missingIngredientExplanation`
 - `substitutes`
-- `recipe`
+- `recipeSummary`
+- `recipeFull`
+- `textureGuide`
 - `caution`
+- `calories`
+- `protein`
+- `cookTimeMinutes`
 
 ### 9.5 검증 규칙
 
-- `selectedMenu`는 미리 선택된 메뉴와 같아야 한다.
-- `missingIngredients`는 백엔드 계산값과 같아야 한다.
-- 대체재는 허용된 후보 범위 안에서만 작성해야 한다.
-- 알레르기 재료와 위험 표현이 포함되면 안 된다.
-- 조리법은 3줄이어야 한다.
+- JSON schema를 통과해야 한다.
+- 월령, 알레르기, 위험 표현 규칙을 통과해야 한다.
+- `recipeSummary`는 3줄, `recipeFull`은 5~8단계여야 한다.
+- `usedIngredients`, `optionalAddedIngredients`, `missingIngredients`, `substitutes`는 서로 모순되면 안 된다.
+- `ingredient_first`에서는 입력 재료와 허용 보완 재료 범위 안에서만 핵심 재료를 사용할 수 있다.
+- `auto_recommend`에서는 서버가 아는 표준 재료와 pantry basics 안의 재료만 사용할 수 있다.
+- 최근 3일 이력과 현재 요청 earlier meal의 exact menu 중복은 허용하지 않는다.
+- 첫 시도에서는 menu family 중복도 허용하지 않는다.
+- AI 영양/시간 값이 시스템 추정 허용 오차를 넘으면 시스템 추정값으로 대체한다.
 
 ### 9.6 fallback 정책
 
@@ -270,8 +279,9 @@ AI는 구조화된 JSON으로 아래를 반환해야 한다.
 
 - OpenAI 설정 없음
 - OpenAI 호출 실패
-- 구조화 응답 검증 실패
+- 1차/2차 구조화 응답 검증 실패
 - 안전성 가드 실패
+- 최근 이력 중복을 재시도에서도 피하지 못한 경우
 
 ## 10. 후속 확장 방향
 

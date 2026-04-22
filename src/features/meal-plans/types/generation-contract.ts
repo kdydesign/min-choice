@@ -3,7 +3,9 @@ import type {
   DailyMealPlan,
   GenerationMode,
   MealType,
-  NutritionEstimate
+  NutritionEstimate,
+  NutritionSource,
+  SelectionSource
 } from "../../../types/domain.ts";
 
 export interface GenerateMealPlanPayload {
@@ -20,6 +22,10 @@ export interface AiSubstituteItem {
 
 export interface AiMealResponse {
   selectedMenu: string;
+  cookingStyle: string;
+  mainProtein: string;
+  usedIngredients: string[];
+  optionalAddedIngredients: string[];
   recommendation: string;
   missingIngredients: string[];
   missingIngredientExplanation: string;
@@ -29,7 +35,9 @@ export interface AiMealResponse {
   textureGuide: string;
   caution: string;
   menuFamily: string | null;
-  optionalAddedIngredients: string[];
+  calories: number | string;
+  protein: number | string;
+  cookTimeMinutes: number | string;
 }
 
 export interface MealPlanPersistenceDraft {
@@ -44,6 +52,8 @@ export interface MealPlanPersistenceDraft {
   } | null;
   inputStrength?: "none" | "low" | "medium" | "high" | null;
   recipeFull?: string[];
+  selectionSource?: SelectionSource | null;
+  nutritionSource?: NutritionSource | null;
 }
 
 export type GenerateMealPlanResult = DailyMealPlan;
