@@ -4678,10 +4678,21 @@ li + li {
   flex: 1 1 100%;
   display: block;
   padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: #364153;
   font-size: 16px;
   line-height: 27.681px;
   letter-spacing: -0.02em;
+}
+
+.child-profile-onboarding-card.is-allergy .tag-list input:focus,
+.child-profile-onboarding-card.is-allergy .tag-list input:focus-visible {
+  outline: none;
+  border: 0;
+  box-shadow: none;
 }
 
 .child-profile-onboarding-card.is-allergy .tag-list input::placeholder {
