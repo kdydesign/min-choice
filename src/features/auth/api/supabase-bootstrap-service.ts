@@ -29,7 +29,8 @@ interface MealPlanRow {
   created_at: string;
 }
 
-let ensureSessionPromise: Promise<Session | null> | null = null;
+let existingSessionPromise: Promise<Session | null> | null = null;
+let anonymousSessionPromise: Promise<Session | null> | null = null;
 let bootstrapPromise: Promise<void> | null = null;
 let hasBootstrappedPersistence = false;
 
@@ -223,46 +224,70 @@ async function migrateLocalDataToSupabase(userId: string) {
   localStorage.setItem(MIGRATION_STATE_KEY, "done");
 }
 
-export async function ensureSupabaseSession() {
+export async function getExistingSupabaseSession() {
   const supabase = getSupabaseClient();
 
   if (!supabase) {
     return null;
   }
 
-  if (ensureSessionPromise) {
-    return ensureSessionPromise;
+  if (existingSessionPromise) {
+    return existingSessionPromise;
   }
 
-  ensureSessionPromise = (async () => {
+  existingSessionPromise = (async () => {
     const { data, error } = await supabase.auth.getSession();
 
     if (error) {
       throw error;
     }
 
-    if (data.session) {
-      return data.session;
-    }
+    return data.session ?? null;
+  })();
 
+  try {
+    return await existingSessionPromise;
+  } finally {
+    existingSessionPromise = null;
+  }
+}
+
+export async function ensureAnonymousSupabaseSession() {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const existingSession = await getExistingSupabaseSession();
+
+  if (existingSession) {
+    return existingSession;
+  }
+
+  if (anonymousSessionPromise) {
+    return anonymousSessionPromise;
+  }
+
+  anonymousSessionPromise = (async () => {
     const anonymousSignIn = await supabase.auth.signInAnonymously();
 
     if (anonymousSignIn.error) {
       throw anonymousSignIn.error;
     }
 
-    return anonymousSignIn.data.session;
+    return anonymousSignIn.data.session ?? null;
   })();
 
   try {
-    return await ensureSessionPromise;
+    return await anonymousSessionPromise;
   } finally {
-    ensureSessionPromise = null;
+    anonymousSessionPromise = null;
   }
 }
 
 export async function getSupabaseCurrentUserId() {
-  const session = await ensureSupabaseSession();
+  const session = await getExistingSupabaseSession();
   return session?.user.id ?? null;
 }
 
@@ -278,7 +303,7 @@ export async function ensureSupabasePersistenceReady() {
   }
 
   bootstrapPromise = (async () => {
-    const session = await ensureSupabaseSession();
+    const session = await getExistingSupabaseSession();
 
     if (!session?.user.id || !isUuid(session.user.id)) {
       return;

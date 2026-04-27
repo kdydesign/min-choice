@@ -1,8 +1,8 @@
 import type { Provider, Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "../../../lib/supabase";
 import {
-  ensureSupabasePersistenceReady,
-  ensureSupabaseSession
+  ensureAnonymousSupabaseSession,
+  ensureSupabasePersistenceReady
 } from "./supabase-bootstrap-service";
 
 const PENDING_ANONYMOUS_LINK_KEY = "min-baby-meals.pending-anonymous-link-user-id";
@@ -108,7 +108,7 @@ export async function startOAuthSignIn(provider: Provider, currentSession: Sessi
 }
 
 export async function continueWithAnonymousSession() {
-  const session = await ensureSupabaseSession();
+  const session = await ensureAnonymousSupabaseSession();
   await ensureSupabasePersistenceReady();
   setAnonymousSessionPaused(false);
   return session;

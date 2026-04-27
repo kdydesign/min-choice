@@ -3,11 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   getSupabaseClientMock,
-  ensureSupabaseSessionMock,
+  ensureAnonymousSupabaseSessionMock,
   ensureSupabasePersistenceReadyMock
 } = vi.hoisted(() => ({
   getSupabaseClientMock: vi.fn(),
-  ensureSupabaseSessionMock: vi.fn(),
+  ensureAnonymousSupabaseSessionMock: vi.fn(),
   ensureSupabasePersistenceReadyMock: vi.fn()
 }));
 
@@ -16,7 +16,7 @@ vi.mock("../../../lib/supabase", () => ({
 }));
 
 vi.mock("./supabase-bootstrap-service", () => ({
-  ensureSupabaseSession: ensureSupabaseSessionMock,
+  ensureAnonymousSupabaseSession: ensureAnonymousSupabaseSessionMock,
   ensureSupabasePersistenceReady: ensureSupabasePersistenceReadyMock
 }));
 
@@ -62,7 +62,7 @@ describe("supabase-auth-service", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     getSupabaseClientMock.mockReset();
-    ensureSupabaseSessionMock.mockReset();
+    ensureAnonymousSupabaseSessionMock.mockReset();
     ensureSupabasePersistenceReadyMock.mockReset();
   });
 
@@ -91,7 +91,7 @@ describe("supabase-auth-service", () => {
     localStorage.setItem("min-baby-meals.anonymous-session-paused", "true");
     const session = createSession("anon-user", true);
 
-    ensureSupabaseSessionMock.mockResolvedValue(session);
+    ensureAnonymousSupabaseSessionMock.mockResolvedValue(session);
     ensureSupabasePersistenceReadyMock.mockResolvedValue(undefined);
 
     const nextSession = await continueWithAnonymousSession();

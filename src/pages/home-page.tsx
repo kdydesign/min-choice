@@ -99,6 +99,10 @@ export function HomePage() {
   });
 
   useEffect(() => {
+    if (isProfilesLoading) {
+      return;
+    }
+
     if (profiles.length === 0) {
       setSelectedChild("");
       setSelectedPlan("");
@@ -108,21 +112,29 @@ export function HomePage() {
     if (!selectedChildId || !profiles.some((profile) => profile.id === selectedChildId)) {
       setSelectedChild(profiles[0].id);
     }
-  }, [profiles, selectedChildId, setSelectedChild, setSelectedPlan]);
+  }, [isProfilesLoading, profiles, selectedChildId, setSelectedChild, setSelectedPlan]);
 
   useEffect(() => {
     if (!selectedChild) {
-      setMealDraft(emptyMealDraft());
-      setHasSeededInitialDraft(false);
+      if (!isProfilesLoading) {
+        setMealDraft(emptyMealDraft());
+        setHasSeededInitialDraft(false);
+      }
+
       return;
     }
 
     setHasSeededInitialDraft(hasMealDraft(selectedChild.id));
     setMealDraft(getMealDraft(selectedChild.id));
-  }, [selectedChild]);
+  }, [isProfilesLoading, selectedChild]);
 
   useEffect(() => {
-    if (!selectedChild || hasSeededInitialDraft) {
+    if (!selectedChild || hasSeededInitialDraft || isHistoryLoading) {
+      return;
+    }
+
+    if (hasMealDraft(selectedChild.id)) {
+      setHasSeededInitialDraft(true);
       return;
     }
 
@@ -138,7 +150,7 @@ export function HomePage() {
       updatedAt: history[0].createdAt
     });
     setHasSeededInitialDraft(true);
-  }, [hasSeededInitialDraft, history, selectedChild]);
+  }, [hasSeededInitialDraft, history, isHistoryLoading, selectedChild]);
 
   const savePlanMutation = useMutation({
     mutationFn: saveMealPlan

@@ -49,6 +49,10 @@ export function ProfilePage() {
   });
 
   useEffect(() => {
+    if (isProfilesLoading) {
+      return;
+    }
+
     if (profiles.length === 0) {
       setSelectedChild("");
       setSelectedPlan("");
@@ -58,7 +62,7 @@ export function ProfilePage() {
     if (!selectedChildId || !profiles.some((profile) => profile.id === selectedChildId)) {
       setSelectedChild(profiles[0].id);
     }
-  }, [profiles, selectedChildId, setSelectedChild, setSelectedPlan]);
+  }, [isProfilesLoading, profiles, selectedChildId, setSelectedChild, setSelectedPlan]);
 
   const profileMutation = useMutation({
     mutationFn: saveChildProfile,
@@ -166,6 +170,20 @@ export function ProfilePage() {
     setViewMode("edit");
   }
 
+  async function handleSignOut() {
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      setActionError(
+        getErrorMessage(error, isAnonymous ? "시작 화면으로 이동하지 못했어요." : "로그아웃하지 못했어요.")
+      );
+    }
+  }
+
   function handleCloseRegistration() {
     setActionError(null);
     setEditingChildId(null);
@@ -251,7 +269,7 @@ export function ProfilePage() {
               />
 
               <div className="profile-page-actions">
-                <button type="button" className="profile-selection-logout-button" onClick={() => void signOut()}>
+                <button type="button" className="profile-selection-logout-button" onClick={() => void handleSignOut()}>
                   <AppIcon name="logout" size={20} aria-hidden="true" />
                   <span>{isAnonymous ? "시작 화면으로" : "로그아웃"}</span>
                 </button>
