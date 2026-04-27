@@ -4485,6 +4485,169 @@ li + li {
   letter-spacing: -0.012em;
 }
 
+.mobile-select {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.mobile-select-label {
+  color: #1e2939;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.mobile-select-trigger {
+  width: 100%;
+  min-height: 67.68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 1.846px solid transparent;
+  background: #fffcf7;
+  color: #364153;
+  text-align: left;
+  font-size: 16px;
+  line-height: 24px;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+.mobile-select.is-compact .mobile-select-trigger {
+  min-height: 67.68px;
+  padding-inline: 12px;
+}
+
+.mobile-select-trigger.is-placeholder {
+  color: #99a1af;
+}
+
+.mobile-select-trigger:focus-visible,
+.mobile-select-trigger[aria-expanded="true"] {
+  outline: none;
+  border-color: rgba(21, 93, 252, 0.22);
+  box-shadow: 0 0 0 4px rgba(21, 93, 252, 0.08);
+}
+
+.mobile-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.mobile-select-chevron {
+  color: #4a90e2;
+  font-size: 16px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.mobile-select-error {
+  color: var(--danger-text);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.mobile-select-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.mobile-select-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 100%;
+  background: rgba(30, 41, 57, 0.34);
+  cursor: default;
+}
+
+.mobile-select-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 393.719px);
+  max-height: min(72dvh, 560px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: 24px 24px 20px 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 68px rgba(31, 41, 55, 0.24);
+}
+
+.mobile-select-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.9);
+}
+
+.mobile-select-sheet-head strong {
+  color: #1e2939;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 800;
+}
+
+.mobile-select-close {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mobile-select-options {
+  display: grid;
+  gap: 4px;
+  overflow-y: auto;
+  padding: 8px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-select-option {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #364153;
+  text-align: left;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.mobile-select-option.is-selected {
+  background: #fff4eb;
+  color: #1e2939;
+  font-weight: 800;
+}
+
+.mobile-select-option-check {
+  color: #e89072;
+  font-weight: 900;
+}
+
 .child-profile-form {
   display: grid;
 }
@@ -4512,11 +4675,15 @@ li + li {
 
 .child-profile-onboarding-card.has-helper,
 .child-profile-onboarding-card.is-allergy {
-  min-height: 175.645px;
+  min-height: 183.652px;
 }
 
 .child-profile-onboarding-card.is-compact {
   min-height: 151.653px;
+}
+
+.child-profile-onboarding-card.is-birth-date {
+  min-height: 159.66px;
 }
 
 .child-profile-onboarding-card-header {
@@ -4652,7 +4819,12 @@ li + li {
 
 .child-profile-onboarding-card.is-allergy .tag-input {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  min-height: 59.673px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 1.846px solid transparent;
+  background: #fffcf7;
   overflow: hidden;
 }
 
@@ -4700,14 +4872,17 @@ li + li {
 }
 
 .child-profile-onboarding-card.is-allergy .tag-button {
-  min-height: 35.988px;
+  min-height: 39.68px;
   padding: 8px 15.995px;
   align-self: flex-start;
   gap: 5.998px;
   border-radius: 999px;
-  background: #fff6d6;
-  border: 0;
-  color: #364153;
+  background: #ffffff;
+  border: 1.846px solid #ffe8b3;
+  color: #1e2939;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.1);
   font-size: 14px;
   line-height: 20px;
 }
@@ -4721,7 +4896,54 @@ li + li {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 12px;
+  margin-top: 7.997px;
+  min-height: 15.995px;
+  color: #99a1af;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.child-profile-onboarding-card.is-allergy .field-helper::before {
+  content: "ⓘ";
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.child-profile-onboarding-card.is-allergy .tag-input-empty {
+  display: inline-flex;
+  align-items: center;
+  min-height: 39.68px;
+  padding: 8px 15.995px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1.846px solid #ffe8b3;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.1);
+  color: #1e2939;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.child-profile-onboarding-card.is-allergy .tag-input-value-panel {
+  width: 100%;
+  min-height: 71.669px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 7.997px;
+  margin-top: 15.995px;
+  padding: 15.995px;
+  border-radius: 16px;
+  background: #fff9f0;
+}
+
+.child-profile-birth-selects {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7.997px;
 }
 
 .child-profile-form-helper {

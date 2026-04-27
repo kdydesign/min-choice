@@ -21,7 +21,7 @@ function getRegistrationCopy(mode: ChildRegistrationMode) {
     return {
       title: "아이 정보 수정",
       description: "기존 정보를 수정하고 맞춤 이유식 추천을 이어가세요",
-      submitLabel: "프로필 수정"
+      submitLabel: "프로필 저장"
     };
   }
 

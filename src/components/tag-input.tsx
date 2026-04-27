@@ -15,6 +15,8 @@ interface TagInputProps {
   confirmLabel?: string;
   cancelLabel?: string;
   disabled?: boolean;
+  emptyText?: string;
+  valuePanel?: boolean;
 }
 
 export function TagInput({
@@ -30,7 +32,9 @@ export function TagInput({
   expandedPlaceholder = "재료를 입력하세요 (쉼표나 줄바꿈으로 구분)",
   confirmLabel = "추가",
   cancelLabel = "취소",
-  disabled = false
+  disabled = false,
+  emptyText,
+  valuePanel = false
 }: TagInputProps) {
   const [draftValue, setDraftValue] = useState("");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -74,83 +78,93 @@ export function TagInput({
     .filter(Boolean)
     .join(" ");
 
+  const tagButtons = value.map((tag) => (
+    <button
+      key={tag}
+      type="button"
+      className={`tag-button ${warningSet.has(tag) ? "warning" : ""}`}
+      onClick={() => removeTag(tag)}
+      disabled={disabled}
+    >
+      {tag}
+      <span aria-hidden="true">×</span>
+    </button>
+  ));
+
+  const emptyPanel = emptyText && value.length === 0 ? (
+    <span className="tag-input-empty">{emptyText}</span>
+  ) : null;
+
+  const inputEntry =
+    inputStyle === "dashed-add" ? (
+      isComposerOpen ? (
+        <div className="tag-input-composer">
+          <textarea
+            value={draftValue}
+            onChange={(event) => setDraftValue(event.target.value)}
+            placeholder={expandedPlaceholder}
+            disabled={disabled}
+            rows={3}
+            aria-label={label}
+            autoFocus
+          />
+          <div className="tag-input-composer-actions">
+            <button type="button" className="tag-input-composer-confirm" onClick={commitDraft} disabled={disabled}>
+              {confirmLabel}
+            </button>
+            <button type="button" className="tag-input-composer-cancel" onClick={closeComposer} disabled={disabled}>
+              {cancelLabel}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="tag-input-entry dashed-add"
+          onClick={() => {
+            if (!disabled) {
+              setIsComposerOpen(true);
+            }
+          }}
+          disabled={disabled}
+        >
+          <span className="tag-input-entry-icon" aria-hidden="true">
+            +
+          </span>
+          <span className="tag-input-entry-label">{placeholder}</span>
+        </button>
+      )
+    ) : (
+      <div className="tag-input-entry">
+        <input
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              commitDraft();
+            }
+          }}
+          onBlur={commitDraft}
+          placeholder={placeholder}
+          disabled={disabled}
+          aria-label={label}
+        />
+      </div>
+    );
+
   return (
     <div className="field">
       <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
       <div className={tagInputClassName} data-expanded={isComposerOpen}>
         <div className="tag-list">
-          {value.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              className={`tag-button ${warningSet.has(tag) ? "warning" : ""}`}
-              onClick={() => removeTag(tag)}
-              disabled={disabled}
-            >
-              {tag}
-              <span aria-hidden="true">×</span>
-            </button>
-          ))}
-
-          {inputStyle === "dashed-add" ? (
-            isComposerOpen ? (
-              <div className="tag-input-composer">
-                <textarea
-                  value={draftValue}
-                  onChange={(event) => setDraftValue(event.target.value)}
-                  placeholder={expandedPlaceholder}
-                  disabled={disabled}
-                  rows={3}
-                  aria-label={label}
-                  autoFocus
-                />
-                <div className="tag-input-composer-actions">
-                  <button type="button" className="tag-input-composer-confirm" onClick={commitDraft} disabled={disabled}>
-                    {confirmLabel}
-                  </button>
-                  <button type="button" className="tag-input-composer-cancel" onClick={closeComposer} disabled={disabled}>
-                    {cancelLabel}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="tag-input-entry dashed-add"
-                onClick={() => {
-                  if (!disabled) {
-                    setIsComposerOpen(true);
-                  }
-                }}
-                disabled={disabled}
-              >
-                <span className="tag-input-entry-icon" aria-hidden="true">
-                  +
-                </span>
-                <span className="tag-input-entry-label">{placeholder}</span>
-              </button>
-            )
-          ) : (
-            <div className="tag-input-entry">
-              <input
-                value={draftValue}
-                onChange={(event) => setDraftValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === ",") {
-                    event.preventDefault();
-                    commitDraft();
-                  }
-                }}
-                onBlur={commitDraft}
-                placeholder={placeholder}
-                disabled={disabled}
-                aria-label={label}
-              />
-            </div>
-          )}
+          {valuePanel ? inputEntry : tagButtons}
+          {valuePanel ? null : inputEntry}
+          {valuePanel ? null : emptyPanel}
         </div>
       </div>
       {helperText ? <small className="field-helper">{helperText}</small> : null}
+      {valuePanel ? <div className="tag-input-value-panel">{value.length > 0 ? tagButtons : emptyPanel}</div> : null}
     </div>
   );
 }
