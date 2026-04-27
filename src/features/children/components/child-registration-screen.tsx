@@ -12,6 +12,7 @@ interface ChildRegistrationScreenProps {
     payload: Omit<ChildProfile, "id" | "createdAt" | "updatedAt">,
     editingId?: string
   ) => Promise<void> | void;
+  cancelLabel?: string;
   onCancel?: () => void;
 }
 
@@ -36,6 +37,7 @@ export function ChildRegistrationScreen({
   initialProfile = null,
   submitting = false,
   onSave,
+  cancelLabel = "취소",
   onCancel
 }: ChildRegistrationScreenProps) {
   const copy = getRegistrationCopy(mode);
@@ -54,7 +56,7 @@ export function ChildRegistrationScreen({
         initialProfile={initialProfile}
         layout="onboarding"
         submitLabel={copy.submitLabel}
-        cancelLabel="취소"
+        cancelLabel={cancelLabel}
         submitting={submitting}
         onSave={onSave}
         onCancel={onCancel}

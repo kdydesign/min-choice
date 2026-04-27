@@ -155,6 +155,7 @@ export function ProfilePage() {
   const isRegistrationMode = resolvedViewMode !== "list";
   const isMissingEditingProfile =
     resolvedViewMode === "edit" && !isProfilesLoading && !editingProfile;
+  const registrationCancelLabel = isEmptyState ? (isAnonymous ? "시작 화면으로" : "로그아웃") : "취소";
 
   function handleOpenCreate() {
     setActionError(null);
@@ -249,7 +250,8 @@ export function ProfilePage() {
               initialProfile={editingProfile}
               submitting={profileMutation.isPending}
               onSave={handleSaveProfile}
-              onCancel={handleCloseRegistration}
+              cancelLabel={registrationCancelLabel}
+              onCancel={isEmptyState ? () => void handleSignOut() : handleCloseRegistration}
             />
           ) : (
             <>
