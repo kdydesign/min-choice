@@ -4558,9 +4558,10 @@ li + li {
   inset: 0;
   z-index: 90;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   padding: 12px;
+  padding-top: calc(12px + env(safe-area-inset-top));
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
 
@@ -4581,7 +4582,7 @@ li + li {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  border-radius: 24px 24px 20px 20px;
+  border-radius: 24px;
   background: #ffffff;
   box-shadow: 0 24px 68px rgba(31, 41, 55, 0.24);
 }
@@ -4826,6 +4827,11 @@ li + li {
   border: 1.846px solid transparent;
   background: #fffcf7;
   overflow: hidden;
+}
+
+.child-profile-onboarding-card.is-allergy .tag-input:focus-within {
+  border-color: rgba(21, 93, 252, 0.62);
+  box-shadow: 0 0 0 4px rgba(21, 93, 252, 0.12);
 }
 
 .child-profile-onboarding-card.is-allergy .tag-list {
