@@ -29,6 +29,7 @@
 - Edge Functions
 - 익명 사용자 연동
 - AI 호출과 검증
+- 네이버 쇼핑 검색 API 호출과 상품 검색 결과 정규화 / 캐시
 
 ## 3. 환경 변수
 
@@ -41,7 +42,20 @@
 
 - `OPENAI_API_KEY`
 - `service_role`
+- `NAVER_SHOPPING_CLIENT_ID`
+- `NAVER_SHOPPING_CLIENT_SECRET`
 - 기타 서버 전용 시크릿
+
+### 3.3 Supabase Edge Function Secret
+
+서버 함수에서만 사용하는 값은 Supabase Edge Function Secret으로 관리합니다.
+
+- `OPENAI_API_KEY`
+- `NAVER_SHOPPING_CLIENT_ID`
+- `NAVER_SHOPPING_CLIENT_SECRET`
+- `service_role`
+
+기성제품 최저가 찾기 1차 MVP에서 React 클라이언트는 네이버 쇼핑 API를 직접 호출하지 않고, Supabase Edge Function `search-products`만 호출합니다.
 
 ## 4. 인증 및 Redirect URL 기준
 
@@ -146,6 +160,8 @@ SPA 새로고침 대응을 위해 `vercel.json` rewrite를 사용합니다.
 - 하루 식단 생성 정상
 - OpenAI 실패 시 fallback 정상
 - 최근 식단 조회 정상
+- 기성제품 검색 도입 시 `search-products` Edge Function 정상
+- 기성제품 검색 도입 시 네이버 API 시크릿이 프론트 번들에 포함되지 않는지 확인
 
 ## 8. 현재 운영 메모
 
@@ -167,4 +183,5 @@ SPA 새로고침 대응을 위해 `vercel.json` rewrite를 사용합니다.
 - 제품 스펙: [../product-spec.md](../product-spec.md)
 - UX 스펙: [../ux-spec.md](../ux-spec.md)
 - 시스템 구조: [../architecture.md](../architecture.md)
+- 기성제품 최저가 찾기 MVP 설계: [../shopping-product-search-mvp.md](../shopping-product-search-mvp.md)
 - 구현 규칙: [../../AGENTS.md](../../AGENTS.md)

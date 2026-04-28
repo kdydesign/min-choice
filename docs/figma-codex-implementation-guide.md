@@ -23,6 +23,7 @@ _Bebe Choice 프로젝트 전용_
 - 제품 스펙: [./product-spec.md](./product-spec.md)
 - UX 기준: [./ux-spec.md](./ux-spec.md)
 - 시스템 구조: [./architecture.md](./architecture.md)
+- 기성제품 최저가 찾기 MVP 설계: [./shopping-product-search-mvp.md](./shopping-product-search-mvp.md)
 
 ---
 
@@ -243,6 +244,45 @@ Figma:
   - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/%EC%A0%9C%EB%AA%A9-%EC%97%86%EC%9D%8C?node-id=5-511&m=dev>
 
 > 주의: 현재 프로젝트는 “하루 식단 입력”과 “오늘의 식단 결과”를 별도 route로 나누지 않고, `home-page` 내부 상태 전환으로 처리합니다.
+
+쇼핑 연결 후보:
+- `MealProductSearchAction`
+  - 역할: 끼니 카드 하단의 `비슷한 기성 이유식 최저가 보기` 보조 CTA
+  - 예상 위치: [`src/features/meal-plans/components/today-meal-result-screen.tsx`](../src/features/meal-plans/components/today-meal-result-screen.tsx) 내부 끼니 카드 하단
+  - 도메인 책임: CTA 렌더링과 meal context 전달까지만 담당하고, 검색어 생성 / 검색 실행은 `src/features/shopping`으로 분리
+
+Figma:
+- 추후 Figma 노드 필요
+
+### 4.6 기성제품 찾기 페이지
+
+- 역할: 기성 이유식 / 유아식 / 아기반찬 검색 화면
+- 프로젝트 매핑 후보:
+  - 페이지: [`src/pages/shopping-page.tsx`](../src/pages/shopping-page.tsx)
+  - 도메인: `src/features/shopping`
+  - 라우트: `/shopping`
+
+후보 컴포넌트:
+- `ShoppingPage`
+  - 화면 조합과 라우트 책임
+- `ProductSearchBar`
+  - 검색어 입력, 제출, 비활성 상태
+- `ProductResultCard`
+  - 상품 이미지, 상품명, 쇼핑몰명, 가격, 가격 기준 시점, 경고 배지, `가격 확인하기`
+- `ShoppingDisclaimer`
+  - 가격 / 성분 / 알레르기 / 월령 적합성 고지
+- `MealProductSearchAction`
+  - 오늘 식단 결과에서 쇼핑 검색으로 연결하는 보조 CTA
+
+Figma:
+- 추후 Figma 노드 필요
+
+구현 메모:
+- 아직 쇼핑 관련 Figma 노드가 없으므로 구현 전 페이지 노드와 주요 컴포넌트 노드를 먼저 확정해야 합니다.
+- Figma 노드가 추가되기 전까지는 [shopping-product-search-mvp.md](./shopping-product-search-mvp.md)와 [ux-spec.md](./ux-spec.md)의 정보 구조를 기준으로 설계합니다.
+- 현재 프로젝트는 Tailwind가 아니라 기존 CSS 클래스 + [`src/styles/global.css`](../src/styles/global.css) 기반입니다. 쇼핑 화면도 이 원칙을 유지합니다.
+- 상품 검색 도메인 로직은 `src/features/shopping`으로 분리하고, `children` / `meal-plans` 도메인에 검색 API와 랭킹 로직을 넣지 않습니다.
+- 2026-04-28 기준 1차 구현은 Figma 노드 없이 문서 기준으로 구현했으며, 추후 Figma 노드가 생기면 이 섹션의 노드 매핑을 갱신합니다.
 
 ---
 

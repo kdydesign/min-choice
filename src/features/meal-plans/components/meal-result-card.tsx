@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "../../../components/icons/app-icon";
 import type { MealRecommendation, MealType } from "../../../types/domain";
 import { MEAL_LABELS } from "../../menus/data/menu-catalog";
@@ -29,6 +30,7 @@ interface MealResultCardProps {
   meal: MealRecommendation;
   expanded: boolean;
   disabled?: boolean;
+  productSearchAction?: ReactNode;
   onToggle: () => void;
 }
 
@@ -37,6 +39,7 @@ export function MealResultCard({
   meal,
   expanded,
   disabled = false,
+  productSearchAction,
   onToggle
 }: MealResultCardProps) {
   const meta = MEAL_META[mealType];
@@ -147,6 +150,10 @@ export function MealResultCard({
             </span>
           </div>
         </div>
+
+        {productSearchAction ? (
+          <div className="meal-product-search-action-wrap">{productSearchAction}</div>
+        ) : null}
 
         <button
           type="button"

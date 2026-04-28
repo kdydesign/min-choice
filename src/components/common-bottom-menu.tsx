@@ -65,7 +65,7 @@ export function CommonBottomMenu() {
                 <span className="common-bottom-menu-icon">
                   <AppIcon name="navToday" size={24} active={isActive} />
                 </span>
-                <span className="common-bottom-menu-label">오늘 식단</span>
+                <span className="common-bottom-menu-label">오늘</span>
               </>
             )}
           </NavLink>
@@ -80,7 +80,21 @@ export function CommonBottomMenu() {
                 <span className="common-bottom-menu-icon">
                   <AppIcon name="navHistory" size={24} active={isActive} />
                 </span>
-                <span className="common-bottom-menu-label">최근 식단</span>
+                <span className="common-bottom-menu-label">최근</span>
+              </>
+            )}
+          </NavLink>
+
+          <NavLink
+            to="/shopping"
+            className={({ isActive }) => `common-bottom-menu-item ${isActive ? "active" : ""}`}
+          >
+            {({ isActive }) => (
+              <>
+                <span className="common-bottom-menu-icon">
+                  <AppIcon name="navShopping" size={24} active={isActive} />
+                </span>
+                <span className="common-bottom-menu-label">찾기</span>
               </>
             )}
           </NavLink>
@@ -94,7 +108,7 @@ export function CommonBottomMenu() {
                 <span className="common-bottom-menu-icon">
                   <AppIcon name="navProfile" size={24} active={isActive} />
                 </span>
-                <span className="common-bottom-menu-label">아이 프로필</span>
+                <span className="common-bottom-menu-label">프로필</span>
               </>
             )}
           </NavLink>

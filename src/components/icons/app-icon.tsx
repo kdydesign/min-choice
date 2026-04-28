@@ -8,6 +8,7 @@ export type AppIconName =
   | "navToday"
   | "navHistory"
   | "navProfile"
+  | "navShopping"
   | "delete"
   | "logout"
   | "name"
@@ -391,12 +392,34 @@ function CheckIcon(props: SvgProps) {
   );
 }
 
+function SearchIcon(props: SvgProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M10.75 17.5C14.4779 17.5 17.5 14.4779 17.5 10.75C17.5 7.02208 14.4779 4 10.75 4C7.02208 4 4 7.02208 4 10.75C4 14.4779 7.02208 17.5 10.75 17.5Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M15.75 15.75L20 20"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 const ICON_MAP: Record<AppIconName, (props: SvgProps) => JSX.Element> = {
   childProfile: BabyIcon,
   header: BabyIcon,
   navToday: HomeIcon,
   navHistory: CalendarIcon,
   navProfile: UserIcon,
+  navShopping: SearchIcon,
   delete: TrashIcon,
   logout: LogoutIcon,
   name: SmileIcon,

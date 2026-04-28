@@ -73,6 +73,7 @@
 - `ingredients`
 - `meal-plans`
 - `menus`
+- `shopping`
 
 규칙:
 
@@ -166,6 +167,10 @@ localStorage는 아래만 허용합니다.
 - `ai_generation_logs`
 - `anonymous_users`
 - `user_identity_links`
+- `product_search_queries`
+- `product_search_results`
+- `product_click_logs`
+- `product_price_snapshots`
 
 데이터 규칙:
 
@@ -181,7 +186,18 @@ localStorage는 아래만 허용합니다.
 - 사용자는 자기 데이터만 읽고 써야 한다.
 - `menus`, `ingredients`는 일반 사용자에게 읽기만 허용한다.
 - AI 로그는 일반 사용자에게 직접 노출하지 않는다.
-- `service_role`과 `OPENAI_API_KEY`는 프론트에 두지 않는다.
+- `service_role`, `OPENAI_API_KEY`, `NAVER_SHOPPING_CLIENT_ID`, `NAVER_SHOPPING_CLIENT_SECRET`은 프론트에 두지 않는다.
+
+쇼핑 도메인 규칙:
+
+- 네이버 쇼핑 API는 Supabase Edge Function `search-products`에서만 호출한다.
+- 프론트는 네이버 쇼핑 API를 직접 호출하지 않는다.
+- 상품 검색은 `src/features/shopping`에서 담당한다.
+- `children` 도메인은 선택된 아이 정보와 알레르기 정보 제공까지만 담당한다.
+- `meal-plans` 도메인은 오늘 식단 결과의 쇼핑 CTA 연결까지만 담당한다.
+- 상품명 기준 알레르기 키워드 필터는 전성분 검증이 아니다.
+- 쇼핑 검색어에 숫자 월령을 자동 삽입하지 않는다.
+- 외부 이동 버튼 문구는 `가격 확인하기`를 우선한다.
 
 ## TypeScript / 검증 규칙
 

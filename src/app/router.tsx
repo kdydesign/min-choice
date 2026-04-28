@@ -7,6 +7,7 @@ import { HistoryPage } from "../pages/history-page";
 import { HomePage } from "../pages/home-page";
 import { LoginPage } from "../pages/login-page";
 import { ProfilePage } from "../pages/profile-page";
+import { ShoppingPage } from "../pages/shopping-page";
 
 function RoutePendingScreen({
   showLoginBackdrop = false,
@@ -87,6 +88,7 @@ export function AppRouter() {
           <Route index element={<HomePage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="history/:mealPlanId" element={<HistoryPage />} />
+          <Route path="shopping" element={<ShoppingPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

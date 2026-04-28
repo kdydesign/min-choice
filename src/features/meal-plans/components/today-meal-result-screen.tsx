@@ -4,6 +4,7 @@ import { AppIcon } from "../../../components/icons/app-icon";
 import type { DailyMealPlan, MealType } from "../../../types/domain";
 import { MEAL_TYPES } from "../../../types/domain";
 import { MealGenerationProgress, type MealGenerationStage } from "./meal-generation-progress";
+import { MealProductSearchAction } from "./meal-product-search-action";
 import { MealResultCard } from "./meal-result-card";
 
 interface TodayMealResultScreenProps {
@@ -103,6 +104,15 @@ export function TodayMealResultScreen({
               meal={meal}
               expanded={isExpanded}
               disabled={isGenerating || isSaving}
+              productSearchAction={
+                <MealProductSearchAction
+                  mealType={mealType}
+                  meal={meal}
+                  childId={plan.childId}
+                  mealPlanId={plan.id}
+                  disabled={isGenerating || isSaving}
+                />
+              }
               onToggle={() =>
                 setExpandedMealType((current) => (current === mealType ? null : mealType))
               }
