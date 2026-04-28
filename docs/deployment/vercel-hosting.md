@@ -108,7 +108,21 @@ SPA 새로고침 대응을 위해 `vercel.json` rewrite를 사용합니다.
 - `/manifest.webmanifest`
 - `/sw.js`
 - `/icons/app-icon.svg`
+- browser favicon: `src/assets/favicon-32.png`에서 빌드된 fingerprint asset
+- iOS touch icon: `src/assets/apple-touch-icon.png`에서 빌드된 fingerprint asset
 - 링크 공유용 `/og-image.png`
+
+현재 asset 기준:
+
+- `src/assets/favicon-32.png`: 브라우저 favicon용 32x32 PNG
+- `src/assets/apple-touch-icon.png`: iOS touch icon용 180x180 PNG
+- `src/assets/bebe-background.svg`: 전역 배경
+- `src/assets/figma-login-art.png`: 로그인 화면 이미지
+
+운영 원칙:
+
+- 사용하지 않는 원본/임시 asset은 `src/assets`에 남기지 않습니다.
+- favicon 원본이 다시 필요하면 외부 원본 파일에서 재생성하고, 배포 대상에는 실제 참조되는 크기 파일만 유지합니다.
 
 ## 7. 배포 후 확인 항목
 
@@ -137,6 +151,15 @@ SPA 새로고침 대응을 위해 `vercel.json` rewrite를 사용합니다.
 
 - GitHub push 후 Vercel production이 자동으로 안 붙을 수 있어 수동 배포를 사용한 이력이 있습니다.
 - 대표 alias는 반드시 `bebe-choice.vercel.app`이 최신 deployment를 가리키는지 확인합니다.
+- 2026-04-28 기준 최신 수동 배포:
+  - GitHub: `main` pushed to `kdydesign/min-choice`
+  - 포함 커밋:
+    - `f189da8 fix: stabilize profile form on ios keyboard`
+    - `5298cf4 chore: update favicon assets`
+  - Vercel deployment: `dpl_BBzpfg86Vy43rfNCtUbY8TBL4oBn`
+  - Deployment URL: `https://bebe-choice-llss40mu8-kdydesigns-projects.vercel.app`
+  - Alias: `https://bebe-choice.vercel.app`
+  - 확인 결과: `https://bebe-choice.vercel.app` `HTTP/2 200`
 
 ## 관련 문서
 

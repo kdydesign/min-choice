@@ -25,12 +25,81 @@
 - `stage 6`: 결과 화면 정보 구조 확장 및 가독성 개선 완료
 - `stage 7`: 최신 식단 조회 / 히스토리 조회 / 저장 호환 정리 완료
 
+식단 생성 stage 외 최근 UI/운영 업데이트:
+
+- 아이 정보 수정 페이지 Figma 보정 완료
+- 개월 수 / 생년월일 선택용 공통 `MobileSelect` 도입 완료
+- 알레르기 재료 카드와 저장 버튼 UI 보정 완료
+- iOS Chrome/Safari 키보드 open/close 레이아웃 깨짐 보정 완료
+- favicon / apple touch icon asset 교체 및 미사용 asset 정리 완료
+- 2026-04-28 기준 production 배포 및 `bebe-choice.vercel.app` alias 확인 완료
+
 아직 남아 있는 핵심 후속 작업:
 
 - DB migration 실제 적용
 - generation metadata 컬럼 round-trip 저장 활성화
 - 결과 화면 Figma 미세 보정
 - 실서비스 QA 시나리오 점검
+
+---
+
+## 최근 UI / 운영 업데이트. 아이 정보 수정 페이지
+
+### 목적
+
+아이 정보 수정 페이지를 Figma 기준으로 보정하면서 기존 프로필 저장 로직, API payload, 상태 흐름은 유지합니다.
+
+### 반영 내용
+
+- 개월 수 카드 UI 보정
+- 생년월일 카드 UI 보정
+- 알레르기 재료 카드 UI 보정
+- 프로필 저장 버튼 UI 보정
+- 개월 수와 생년월일 년/월/일 선택을 공통 `MobileSelect`로 통합
+- 생년월일 월/연도 변경 시 유효하지 않은 일자 보정
+- 알레르기 입력은 기존 `TagInput` 재사용
+- 알레르기 입력 focus ring 보정
+- `MobileSelect` 팝업 중앙 정렬
+- 팝업 open 중 배경 스크롤 잠금 및 옵션 목록 boundary guard 적용
+- iOS Chrome/Safari 키보드 open/close 후 하단 공백과 내부 스크롤 깨짐 보정
+
+### 주요 파일
+
+- [../src/pages/profile-page.tsx](../src/pages/profile-page.tsx)
+- [../src/features/children/components/child-profile-form.tsx](../src/features/children/components/child-profile-form.tsx)
+- [../src/components/mobile-select.tsx](../src/components/mobile-select.tsx)
+- [../src/components/tag-input.tsx](../src/components/tag-input.tsx)
+- [../src/styles/global.css](../src/styles/global.css)
+
+### 검증 상태
+
+- `npm run build` 통과
+- iPhone 13 Pro Chrome에서 키보드 open/close 후 레이아웃 깨짐 해결 확인
+- `bebe-choice.vercel.app` production 배포 확인
+
+---
+
+## 최근 UI / 운영 업데이트. favicon asset
+
+### 목적
+
+외부 제공 PNG를 디자인 변경 없이 favicon / iOS touch icon으로 적용하고, 미사용 asset을 정리합니다.
+
+### 반영 내용
+
+- `src/assets/favicon-32.png`: 32x32 favicon
+- `src/assets/apple-touch-icon.png`: 180x180 iOS touch icon
+- `index.html` favicon / apple-touch-icon 링크 갱신
+- 미사용 asset 정리
+  - `src/assets/bi-120x120.png`
+  - `src/assets/favicon.png`
+  - `src/assets/onboarding-illustration.svg`
+
+### 검증 상태
+
+- 이미지 크기 확인 완료
+- `npm run build` 통과
+- production 배포 확인
 
 ---
 

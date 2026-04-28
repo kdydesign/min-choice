@@ -171,10 +171,35 @@ Figma:
 - 관련 컴포넌트:
   - [`src/features/children/components/child-profiles-section.tsx`](../src/features/children/components/child-profiles-section.tsx)
   - [`src/features/children/components/child-selection-card.tsx`](../src/features/children/components/child-selection-card.tsx)
+  - [`src/features/children/components/child-registration-screen.tsx`](../src/features/children/components/child-registration-screen.tsx)
+  - [`src/features/children/components/child-profile-form.tsx`](../src/features/children/components/child-profile-form.tsx)
+  - [`src/components/mobile-select.tsx`](../src/components/mobile-select.tsx)
 
 Figma:
 - 우리아이선택 페이지: `5:35`
   - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/%EC%A0%9C%EB%AA%A9-%EC%97%86%EC%9D%8C?node-id=5-35&m=dev>
+
+최근 적용 기준:
+- 아이 정보 수정 페이지: `72:248`
+  - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/BEBE-DESIGN?node-id=72-248&m=dev>
+- 개월 수 카드: `72:277`
+  - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/BEBE-DESIGN?node-id=72-277&m=dev>
+- 개월 수 선택 콤보박스: `72:287`
+  - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/BEBE-DESIGN?node-id=72-287&m=dev>
+- 생년월일 카드: `72:323`
+  - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/BEBE-DESIGN?node-id=72-323&m=dev>
+- 년/월/일 선택 컨테이너: `72:340`
+  - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/BEBE-DESIGN?node-id=72-340&m=dev>
+- 알레르기 재료 카드: `72:400`
+  - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/BEBE-DESIGN?node-id=72-400&m=dev>
+- 프로필 저장 버튼: `72:424`
+  - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/BEBE-DESIGN?node-id=72-424&m=dev>
+
+구현 메모:
+- 개월 수와 생년월일 년/월/일 선택은 [`src/components/mobile-select.tsx`](../src/components/mobile-select.tsx)를 재사용합니다.
+- 알레르기 재료 입력은 [`src/components/tag-input.tsx`](../src/components/tag-input.tsx)를 재사용합니다.
+- 프로필 화면은 iOS Chrome/Safari 키보드 대응을 위해 `profile-page-active`, `profile-keyboard-open`, `mobile-select-scroll-lock` class를 사용합니다.
+- 키보드 대응에서 `visualViewport.height`를 페이지 높이에 직접 반영하지 않습니다.
 
 ### 4.3 하루 식단 페이지
 
@@ -264,6 +289,23 @@ Figma:
 Figma:
 - 최근 식단 카드 컴포넌트: `11:679`
   - <https://www.figma.com/design/bQjUoNh2muMADHoYQUppHV/%EC%A0%9C%EB%AA%A9-%EC%97%86%EC%9D%8C?node-id=11-679&m=dev>
+
+### 5.5 MobileSelect 컴포넌트
+
+- 역할: 모바일 터치 친화 선택 UI
+- 실제 파일: [`src/components/mobile-select.tsx`](../src/components/mobile-select.tsx)
+- 현재 사용처:
+  - 아이 개월 수 선택
+  - 생년월일 연도 선택
+  - 생년월일 월 선택
+  - 생년월일 일 선택
+
+구현 기준:
+- 페이지별로 select UI를 중복 구현하지 않습니다.
+- 옵션 팝업은 중앙 레이어로 표시합니다.
+- open 중 배경 스크롤을 잠그고 옵션 목록 내부 스크롤만 허용합니다.
+- 선택 전 placeholder, 선택 후 값, disabled, error 상태를 지원합니다.
+- 접근성 속성과 ESC cleanup을 유지합니다.
 
 ---
 
