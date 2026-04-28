@@ -26,6 +26,69 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 type ProfileViewMode = "list" | "create" | "edit";
 
+const KEYBOARD_OPEN_THRESHOLD = 120;
+
+function getProfileScroller() {
+  return document.querySelector<HTMLElement>(".profile-selection-layout");
+}
+
+function clampProfileScrollPosition() {
+  const layout = getProfileScroller();
+
+  if (!layout) {
+    return;
+  }
+
+  const maxScrollTop = Math.max(0, layout.scrollHeight - layout.clientHeight);
+
+  if (layout.scrollTop > maxScrollTop) {
+    layout.scrollTop = maxScrollTop;
+  }
+}
+
+function resetProfileBodyScroll() {
+  if (window.scrollX !== 0 || window.scrollY !== 0) {
+    window.scrollTo(0, 0);
+  }
+}
+
+function stabilizeProfileScroll() {
+  clampProfileScrollPosition();
+  resetProfileBodyScroll();
+}
+
+function scheduleProfileScrollStabilization() {
+  window.requestAnimationFrame(() => {
+    stabilizeProfileScroll();
+    window.setTimeout(stabilizeProfileScroll, 100);
+    window.setTimeout(stabilizeProfileScroll, 260);
+    window.setTimeout(stabilizeProfileScroll, 460);
+  });
+}
+
+function getKeyboardOffset() {
+  const viewport = window.visualViewport;
+
+  if (!viewport) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop));
+}
+
+function syncProfileViewportState() {
+  const keyboardOffset = getKeyboardOffset();
+  const isKeyboardOpen = keyboardOffset > KEYBOARD_OPEN_THRESHOLD;
+  const wasKeyboardOpen = document.body.classList.contains("profile-keyboard-open");
+
+  document.documentElement.style.setProperty("--profile-keyboard-offset", `${keyboardOffset}px`);
+  document.body.classList.toggle("profile-keyboard-open", isKeyboardOpen);
+
+  if (wasKeyboardOpen && !isKeyboardOpen) {
+    scheduleProfileScrollStabilization();
+  }
+}
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,6 +110,29 @@ export function ProfilePage() {
     queryKey: ["children"],
     queryFn: listChildProfiles
   });
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+
+    document.documentElement.classList.add("profile-page-active");
+    document.body.classList.add("profile-page-active");
+    syncProfileViewportState();
+    window.addEventListener("resize", syncProfileViewportState);
+    window.addEventListener("orientationchange", syncProfileViewportState);
+    viewport?.addEventListener("resize", syncProfileViewportState);
+    viewport?.addEventListener("scroll", syncProfileViewportState);
+
+    return () => {
+      window.removeEventListener("resize", syncProfileViewportState);
+      window.removeEventListener("orientationchange", syncProfileViewportState);
+      viewport?.removeEventListener("resize", syncProfileViewportState);
+      viewport?.removeEventListener("scroll", syncProfileViewportState);
+      document.documentElement.classList.remove("profile-page-active");
+      document.documentElement.style.removeProperty("--profile-keyboard-offset");
+      document.body.classList.remove("profile-page-active");
+      document.body.classList.remove("profile-keyboard-open");
+    };
+  }, []);
 
   useEffect(() => {
     if (isProfilesLoading) {

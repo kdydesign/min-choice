@@ -114,6 +114,59 @@ input::placeholder {
   color: rgba(127, 107, 103, 0.78);
 }
 
+body.mobile-select-scroll-lock {
+  overflow: hidden;
+  touch-action: none;
+}
+
+body.mobile-select-scroll-lock .profile-selection-layout {
+  overflow: hidden;
+}
+
+.profile-selection-layout.is-scroll-locked,
+body.mobile-select-scroll-lock .profile-selection-layout {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
+body.mobile-select-scroll-lock .mobile-select-sheet,
+body.mobile-select-scroll-lock .mobile-select-options {
+  touch-action: pan-y;
+}
+
+html.profile-page-active {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.profile-page-active {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.profile-page-active #root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.profile-keyboard-open .profile-selection-layout {
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+body.profile-keyboard-open .common-bottom-menu {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 #root {
   min-height: 100vh;
   position: relative;
@@ -2271,6 +2324,12 @@ li + li {
   box-shadow:
     0 -10px 15px rgba(0, 0, 0, 0.1),
     0 -4px 6px rgba(0, 0, 0, 0.1);
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
 }
 
 .common-bottom-menu-inner {
@@ -4418,6 +4477,8 @@ li + li {
 }
 
 .profile-figma-page {
+  height: 100vh;
+  min-height: 100vh;
   height: 100dvh;
   min-height: 100dvh;
   display: flex;

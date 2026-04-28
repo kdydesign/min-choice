@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
 
 export type MobileSelectValue = string | number;
 
@@ -37,6 +37,8 @@ export function MobileSelect({
   const [isOpen, setIsOpen] = useState(false);
   const titleId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const optionsRef = useRef<HTMLDivElement | null>(null);
+  const touchStartYRef = useRef(0);
 
   const selectedOption = useMemo(
     () => options.find((option) => isSameValue(value, option.value)) ?? null,
@@ -44,30 +46,86 @@ export function MobileSelect({
   );
   const resolvedLabel = label ?? ariaLabel ?? placeholder;
 
+  function focusTrigger() {
+    buttonRef.current?.focus({ preventScroll: true });
+  }
+
   useEffect(() => {
     if (!isOpen) {
       return undefined;
     }
 
+    const profileScroller = document.querySelector<HTMLElement>(".profile-selection-layout");
+    const initialScrollTop = profileScroller?.scrollTop ?? 0;
+
+    document.body.classList.add("mobile-select-scroll-lock");
+    profileScroller?.classList.add("is-scroll-locked");
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsOpen(false);
-        buttonRef.current?.focus();
+        focusTrigger();
       }
     }
 
+    function handleTouchMove(event: TouchEvent) {
+      const target = event.target;
+
+      if (target instanceof Element && target.closest(".mobile-select-options")) {
+        return;
+      }
+
+      event.preventDefault();
+    }
+
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+    return () => {
+      document.body.classList.remove("mobile-select-scroll-lock");
+      profileScroller?.classList.remove("is-scroll-locked");
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("touchmove", handleTouchMove);
+      window.requestAnimationFrame(() => {
+        if (profileScroller) {
+          profileScroller.scrollTop = initialScrollTop;
+        }
+      });
+    };
   }, [isOpen]);
 
   function closeSheet() {
     setIsOpen(false);
-    buttonRef.current?.focus();
+    focusTrigger();
   }
 
   function handleSelect(nextValue: MobileSelectValue) {
     onChange(nextValue);
     closeSheet();
+  }
+
+  function handleOptionsTouchStart(event: ReactTouchEvent<HTMLDivElement>) {
+    touchStartYRef.current = event.touches[0]?.clientY ?? 0;
+  }
+
+  function handleOptionsTouchMove(event: ReactTouchEvent<HTMLDivElement>) {
+    const optionsElement = optionsRef.current;
+    const currentTouchY = event.touches[0]?.clientY ?? touchStartYRef.current;
+    const touchDeltaY = currentTouchY - touchStartYRef.current;
+
+    if (!optionsElement) {
+      return;
+    }
+
+    const isAtTop = optionsElement.scrollTop <= 0;
+    const isAtBottom =
+      Math.ceil(optionsElement.scrollTop + optionsElement.clientHeight) >= optionsElement.scrollHeight;
+
+    if ((isAtTop && touchDeltaY > 0) || (isAtBottom && touchDeltaY < 0)) {
+      event.preventDefault();
+    }
+
+    event.stopPropagation();
   }
 
   return (
@@ -106,7 +164,14 @@ export function MobileSelect({
                 닫기
               </button>
             </div>
-            <div className="mobile-select-options" role="listbox" aria-label={resolvedLabel}>
+            <div
+              ref={optionsRef}
+              className="mobile-select-options"
+              role="listbox"
+              aria-label={resolvedLabel}
+              onTouchStart={handleOptionsTouchStart}
+              onTouchMove={handleOptionsTouchMove}
+            >
               {options.map((option) => {
                 const isSelected = isSameValue(value, option.value);
 

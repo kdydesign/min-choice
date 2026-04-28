@@ -266,6 +266,50 @@ export function ChildProfileForm({
     onCancel?.();
   }
 
+  function clampProfileScrollPosition() {
+    const layout = document.querySelector<HTMLElement>(".profile-selection-layout");
+
+    if (!layout) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, layout.scrollHeight - layout.clientHeight);
+
+    if (layout.scrollTop > maxScrollTop) {
+      layout.scrollTop = maxScrollTop;
+    }
+  }
+
+  function resetProfileBodyScroll() {
+    if (window.scrollX !== 0 || window.scrollY !== 0) {
+      window.scrollTo(0, 0);
+    }
+  }
+
+  function stabilizeProfileScroll() {
+    clampProfileScrollPosition();
+    resetProfileBodyScroll();
+  }
+
+  function scheduleProfileScrollClamp() {
+    window.requestAnimationFrame(() => {
+      stabilizeProfileScroll();
+      window.setTimeout(stabilizeProfileScroll, 120);
+      window.setTimeout(stabilizeProfileScroll, 320);
+      window.setTimeout(stabilizeProfileScroll, 520);
+    });
+  }
+
+  function handleNameKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.blur();
+    scheduleProfileScrollClamp();
+  }
+
   function updateAgeMonths(nextAgeMonths: number) {
     setFormState((current) => ({
       ...current,
@@ -312,7 +356,12 @@ export function ChildProfileForm({
               onChange={(event) =>
                 setFormState((current) => ({ ...current, name: event.target.value }))
               }
-              onBlur={() => setTouchedFields((current) => ({ ...current, name: true }))}
+              onBlur={() => {
+                setTouchedFields((current) => ({ ...current, name: true }));
+                scheduleProfileScrollClamp();
+              }}
+              onKeyDown={handleNameKeyDown}
+              enterKeyHint="done"
               placeholder="예: 하민"
               maxLength={20}
               aria-invalid={touchedFields.name && Boolean(fieldErrors.name)}
@@ -418,7 +467,12 @@ export function ChildProfileForm({
               onChange={(event) =>
                 setFormState((current) => ({ ...current, name: event.target.value }))
               }
-              onBlur={() => setTouchedFields((current) => ({ ...current, name: true }))}
+              onBlur={() => {
+                setTouchedFields((current) => ({ ...current, name: true }));
+                scheduleProfileScrollClamp();
+              }}
+              onKeyDown={handleNameKeyDown}
+              enterKeyHint="done"
               placeholder="예: 하민"
               maxLength={20}
               aria-invalid={touchedFields.name && Boolean(fieldErrors.name)}
