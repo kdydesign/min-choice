@@ -14,6 +14,7 @@ export function getProductSearchQueryKey(input: ProductSearchRequest) {
     request.childId ?? "",
     request.source,
     request.useChildContext,
+    request.sortMode,
     request.filters.onlyNaverPay,
     request.filters.excludeUsed,
     request.filters.excludeRental,
@@ -32,7 +33,8 @@ export function useProductSearch(input: ProductSearchRequest, enabled: boolean) 
     queryKey: getProductSearchQueryKey(request),
     queryFn: () => searchProducts(request),
     enabled: enabled && Boolean(request.query.trim()),
-    staleTime: 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
     retry: 1
   });
 }

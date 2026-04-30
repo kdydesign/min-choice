@@ -126,6 +126,8 @@ export function normalizeShoppingTitle(value: string) {
     .toLowerCase();
 }
 
+export const normalizeShoppingText = normalizeShoppingTitle;
+
 function buildCategoryText(product: NormalizedProduct) {
   return normalizeShoppingTitle([
     product.category1,
@@ -140,6 +142,8 @@ function buildNormalizedProductText(product: NormalizedProduct) {
     product.title,
     product.normalizedTitle,
     product.mallName,
+    product.brand,
+    product.maker,
     product.category1,
     product.category2,
     product.category3,

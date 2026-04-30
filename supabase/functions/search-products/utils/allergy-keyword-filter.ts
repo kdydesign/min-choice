@@ -18,8 +18,25 @@ function normalizeKeyword(value: string) {
   return value.replace(/\s+/g, "").toLowerCase();
 }
 
-export function getAllergyKeywordMatches(title: string, allergies: string[]) {
-  const normalizedTitle = normalizeKeyword(title);
+function buildAllergySearchText(product: NormalizedProduct | string) {
+  if (typeof product === "string") {
+    return product;
+  }
+
+  return [
+    product.title,
+    product.mallName,
+    product.brand,
+    product.maker,
+    product.category1,
+    product.category2,
+    product.category3,
+    product.category4
+  ].join(" ");
+}
+
+export function getAllergyKeywordMatches(product: NormalizedProduct | string, allergies: string[]) {
+  const normalizedText = normalizeKeyword(buildAllergySearchText(product));
   const keywords = allergies.flatMap((allergy) => {
     const normalized = allergy.trim();
     if (!normalized) {
@@ -29,7 +46,7 @@ export function getAllergyKeywordMatches(title: string, allergies: string[]) {
     return ALLERGY_SYNONYMS[normalized] ?? [normalized];
   });
 
-  return [...new Set(keywords.filter((keyword) => normalizedTitle.includes(normalizeKeyword(keyword))))];
+  return [...new Set(keywords.filter((keyword) => normalizedText.includes(normalizeKeyword(keyword))))];
 }
 
 export function applyAllergyKeywordFilter(input: {
@@ -37,7 +54,7 @@ export function applyAllergyKeywordFilter(input: {
   allergies: string[];
   excludeMatches: boolean;
 }) {
-  const matches = getAllergyKeywordMatches(input.product.title, input.allergies);
+  const matches = getAllergyKeywordMatches(input.product, input.allergies);
   const warningBadges = matches.length > 0 ? [`알레르기 키워드: ${matches.join(", ")}`] : [];
 
   return {

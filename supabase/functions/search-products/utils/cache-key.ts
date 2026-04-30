@@ -2,12 +2,13 @@ export interface CacheKeyInput {
   provider: string;
   normalizedQuery: string;
   category: string;
+  sortMode: string;
   filters: Record<string, unknown>;
   allergyKeywords: string[];
   limit: number;
 }
 
-export const PRODUCT_SEARCH_FILTER_POLICY_VERSION = "filter-policy-v3";
+export const PRODUCT_SEARCH_FILTER_POLICY_VERSION = "filter-policy-v4";
 
 export function buildCacheKey(input: CacheKeyInput) {
   const normalizedFilters = Object.fromEntries(
@@ -19,6 +20,7 @@ export function buildCacheKey(input: CacheKeyInput) {
     PRODUCT_SEARCH_FILTER_POLICY_VERSION,
     input.normalizedQuery,
     input.category,
+    input.sortMode,
     JSON.stringify(normalizedFilters),
     input.allergyKeywords.map((keyword) => keyword.trim()).filter(Boolean).sort().join(","),
     String(input.limit)

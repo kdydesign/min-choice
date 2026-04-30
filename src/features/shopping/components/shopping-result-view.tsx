@@ -7,7 +7,8 @@ import type {
   MealProductSearchContext,
   ProductSearchFilters,
   ProductSearchItem,
-  ProductSearchSource
+  ProductSearchSource,
+  ProductSearchSortMode
 } from "../types";
 
 interface ShoppingResultViewProps {
@@ -15,6 +16,7 @@ interface ShoppingResultViewProps {
   title: string;
   subtitle: string;
   query: string;
+  sortMode: ProductSearchSortMode;
   filters: ProductSearchFilters;
   items: ProductSearchItem[];
   isLoading: boolean;
@@ -24,6 +26,7 @@ interface ShoppingResultViewProps {
   source: ProductSearchSource;
   mealContext?: MealProductSearchContext | null;
   onSubmitSearch: (query: string) => void;
+  onChangeSortMode: (sortMode: ProductSearchSortMode) => void;
   onChangeFilters: (filters: ProductSearchFilters) => void;
   onRetry: () => void;
 }
@@ -33,6 +36,7 @@ export function ShoppingResultView({
   title,
   subtitle,
   query,
+  sortMode,
   filters,
   items,
   isLoading,
@@ -42,6 +46,7 @@ export function ShoppingResultView({
   source,
   mealContext = null,
   onSubmitSearch,
+  onChangeSortMode,
   onChangeFilters,
   onRetry
 }: ShoppingResultViewProps) {
@@ -65,8 +70,10 @@ export function ShoppingResultView({
             />
           ) : null}
           <ProductResultFilterChips
+            sortMode={sortMode}
             filters={filters}
             disabled={isLoading}
+            onChangeSortMode={onChangeSortMode}
             onChangeFilters={onChangeFilters}
           />
         </section>

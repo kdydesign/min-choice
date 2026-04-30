@@ -4916,7 +4916,8 @@ li + li {
   white-space: nowrap;
 }
 
-.shopping-result-filter-chip.is-sort-active {
+.shopping-result-filter-chip.is-sort-active,
+.shopping-result-filter-chip.is-selected {
   border-color: transparent;
   background: #4a90e2;
   color: #fff;
@@ -4925,10 +4926,8 @@ li + li {
     0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.shopping-result-filter-chip.is-selected:not(.is-sort-active) {
-  border-color: #b7d8ff;
-  background: #f7fbff;
-  color: #2f6fae;
+.shopping-result-filter-chip:not(.is-sort-active):not(.is-selected) {
+  box-shadow: none;
 }
 
 .shopping-condition-panel {

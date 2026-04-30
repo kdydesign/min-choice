@@ -1,6 +1,8 @@
 import {
   DEFAULT_PRODUCT_SEARCH_FILTERS,
+  DEFAULT_PRODUCT_SEARCH_SORT_MODE,
   PRODUCT_SEARCH_CATEGORIES,
+  PRODUCT_SEARCH_SORT_MODES,
   PRODUCT_SEARCH_SOURCES,
   type MealProductSearchContext,
   type ProductSearchCategory,
@@ -8,7 +10,8 @@ import {
   type ProductSearchItem,
   type ProductSearchRequest,
   type ProductSearchResponse,
-  type ProductSearchSource
+  type ProductSearchSource,
+  type ProductSearchSortMode
 } from "./types";
 import { formatProductPrice } from "./utils/format-product-price";
 
@@ -54,6 +57,13 @@ export function parseProductSearchSource(value: unknown): ProductSearchSource {
   return typeof value === "string" && PRODUCT_SEARCH_SOURCES.includes(value as ProductSearchSource)
     ? (value as ProductSearchSource)
     : "manual";
+}
+
+export function parseProductSearchSortMode(value: unknown): ProductSearchSortMode {
+  return typeof value === "string" &&
+    PRODUCT_SEARCH_SORT_MODES.includes(value as ProductSearchSortMode)
+    ? (value as ProductSearchSortMode)
+    : DEFAULT_PRODUCT_SEARCH_SORT_MODE;
 }
 
 export function parseProductSearchFilters(value: unknown): ProductSearchFilters {
@@ -102,6 +112,7 @@ export function normalizeProductSearchRequest(input: Partial<ProductSearchReques
     source: parseProductSearchSource(input.source),
     mealContext: parseMealContext(input.mealContext),
     filters: parseProductSearchFilters(input.filters),
+    sortMode: parseProductSearchSortMode(input.sortMode),
     limit: Math.min(Math.max(Math.round(parseNumber(input.limit, 20)), 1), 100)
   };
 }
@@ -130,6 +141,7 @@ function parseProductSearchItem(value: unknown): ProductSearchItem | null {
     price,
     displayPrice: parseString(value.displayPrice) || formatProductPrice(price),
     priceRank: Math.max(1, Math.round(parseNumber(value.priceRank, 1))),
+    relevanceScore: parseNumber(value.relevanceScore, 0),
     allergyKeywordMatches: parseStringArray(value.allergyKeywordMatches),
     warningBadges: parseStringArray(value.warningBadges),
     fetchedAt: parseString(value.fetchedAt, new Date().toISOString())

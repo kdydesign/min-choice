@@ -3,6 +3,7 @@ import {
   buildCacheKey,
   PRODUCT_SEARCH_FILTER_POLICY_VERSION
 } from "../../../../supabase/functions/search-products/utils/cache-key.ts";
+import { applyAllergyKeywordFilter } from "../../../../supabase/functions/search-products/utils/allergy-keyword-filter.ts";
 import {
   getBabyFoodRelevanceScore,
   isFoodProduct,
@@ -16,19 +17,23 @@ import {
 import { sortBabyFoodShoppingResults } from "../../../../supabase/functions/search-products/utils/rank-products.ts";
 import type { NormalizedProduct } from "../../../../supabase/functions/search-products/utils/normalize-product.ts";
 
+type ProductOverrides = Partial<
+  Pick<NormalizedProduct, "mallName" | "brand" | "maker" | "price" | "imageUrl">
+>;
+
 function product(
   title: string,
   categories: Partial<
     Pick<NormalizedProduct, "category1" | "category2" | "category3" | "category4">
   > = {},
-  overrides: Partial<Pick<NormalizedProduct, "mallName" | "brand" | "maker" | "price">> = {}
+  overrides: ProductOverrides = {}
 ): NormalizedProduct {
   return {
     provider: "naver",
     providerProductId: title,
     title,
     normalizedTitle: title.toLowerCase(),
-    imageUrl: "https://example.com/image.jpg",
+    imageUrl: overrides.imageUrl ?? "https://example.com/image.jpg",
     productUrl: "https://example.com/product",
     mallName: overrides.mallName ?? "테스트몰",
     price: overrides.price ?? 1000,
@@ -126,7 +131,59 @@ describe("product search filter policy", () => {
     expect(sorted[0].price).toBe(3500);
     expect(sorted[1].title).toBe("베베쿡 아기반찬");
     expect(sorted[1].price).toBe(6500);
-    expect(sorted[2].title).toBe("소고기 다짐육");
+    expect(sorted).toHaveLength(2);
+  });
+
+  it("sorts low prices only after relevance scoring and food filtering", () => {
+    const sorted = sortBabyFoodShoppingResults(
+      [
+        product("소고기 다짐육", {}, { price: 100 }),
+        product("베베쿡 아기반찬", {}, { price: 6500 }),
+        product("짱죽 완료기 이유식", {}, { price: 3500 }),
+        product("아기반찬 보관용기", {}, { price: 50 })
+      ].filter((item) => isFoodProduct(item)),
+      "price_low"
+    );
+
+    expect(sorted.map((item) => item.title)).toEqual([
+      "짱죽 완료기 이유식",
+      "베베쿡 아기반찬"
+    ]);
+  });
+
+  it("uses relevance as the tie breaker for price sorting", () => {
+    const sorted = sortBabyFoodShoppingResults(
+      [
+        product("소고기 죽", {}, { price: 3500 }),
+        product("베베쿡 완료기 이유식", {}, { price: 3500 })
+      ],
+      "price_low"
+    );
+
+    expect(sorted[0].title).toBe("베베쿡 완료기 이유식");
+  });
+
+  it("sends missing or zero prices to the end of low price sorting", () => {
+    const lowSorted = sortBabyFoodShoppingResults(
+      [
+        product("베베쿡 아기반찬 0원", {}, { price: 0 }),
+        product("베베쿡 아기반찬 3000원", {}, { price: 3000 })
+      ],
+      "price_low"
+    );
+
+    expect(lowSorted.at(-1)?.price).toBe(0);
+  });
+
+  it("matches allergy keywords against title, seller, brand, maker, and categories", () => {
+    const filtered = applyAllergyKeywordFilter({
+      product: product("안심 이유식 세트", { category3: "영유아식" }, { brand: "우유맘" }),
+      allergies: ["우유"],
+      excludeMatches: true
+    });
+
+    expect(filtered.allergyKeywordMatches).toContain("우유");
+    expect(filtered.isHiddenByAllergyFilter).toBe(true);
   });
 });
 
@@ -165,6 +222,39 @@ describe("naver shopping provider policy", () => {
     }
   });
 
+  it("uses naverpay filter only when requested", async () => {
+    const fetchCalls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    const mockedFetch: typeof fetch = async (input) => {
+      fetchCalls.push(String(input));
+      return new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    globalThis.fetch = mockedFetch;
+
+    try {
+      const provider = new NaverShoppingProvider("client-id", "client-secret");
+
+      await provider.search({
+        query: "소고기 이유식",
+        limit: 20,
+        onlyNaverPay: true,
+        excludeUsed: true,
+        excludeRental: true,
+        excludeOverseas: true
+      });
+
+      const requestUrl = new URL(fetchCalls[0]);
+      expect(requestUrl.searchParams.get("sort")).toBe("sim");
+      expect(requestUrl.searchParams.get("filter")).toBe("naverpay");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("keeps naver display between 50 and 100", () => {
     expect(getNaverShoppingDisplayLimit(10)).toBe(50);
     expect(getNaverShoppingDisplayLimit(20)).toBe(60);
@@ -178,6 +268,7 @@ describe("product search cache key", () => {
       provider: "naver",
       normalizedQuery: "두부 쌀 이유식",
       category: "baby_food",
+      sortMode: "recommended",
       filters: {
         excludeAllergyKeywordMatches: true,
         excludeOverseas: true,

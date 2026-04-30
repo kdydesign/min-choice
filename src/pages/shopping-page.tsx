@@ -7,13 +7,19 @@ import { listChildProfiles } from "../features/children/api/child-profile-reposi
 import { ShoppingLandingView } from "../features/shopping/components/shopping-landing-view";
 import { ShoppingResultView } from "../features/shopping/components/shopping-result-view";
 import { useProductSearch } from "../features/shopping/hooks";
-import { parseProductSearchCategory, parseProductSearchSource } from "../features/shopping/schema";
+import {
+  parseProductSearchCategory,
+  parseProductSearchSortMode,
+  parseProductSearchSource
+} from "../features/shopping/schema";
 import {
   DEFAULT_PRODUCT_SEARCH_FILTERS,
+  DEFAULT_PRODUCT_SEARCH_SORT_MODE,
   type MealProductSearchContext,
   type ProductSearchCategory,
   type ProductSearchFilters,
-  type ProductSearchSource
+  type ProductSearchSource,
+  type ProductSearchSortMode
 } from "../features/shopping/types";
 import { buildProductSearchQuery } from "../features/shopping/utils/build-product-query";
 import { useAppStore } from "../store/use-app-store";
@@ -80,6 +86,7 @@ function writeSearchParams(input: {
   query: string;
   category: ProductSearchCategory;
   source: ProductSearchSource;
+  sortMode: ProductSearchSortMode;
   childId?: string | null;
   filters: ProductSearchFilters;
   mealContext?: MealProductSearchContext | null;
@@ -89,6 +96,10 @@ function writeSearchParams(input: {
   params.set("q", input.query);
   params.set("category", input.category);
   params.set("source", input.source);
+
+  if (input.sortMode !== DEFAULT_PRODUCT_SEARCH_SORT_MODE) {
+    params.set("sort", input.sortMode);
+  }
 
   if (input.childId) {
     params.set("childId", input.childId);
@@ -118,15 +129,25 @@ function writeSearchParams(input: {
   return params;
 }
 
+function getShoppingResultSubtitle(sortMode: ProductSearchSortMode) {
+  if (sortMode === "price_low") {
+    return "관련도 높은 상품 안에서 낮은 가격순으로 보여드려요";
+  }
+
+  return "관련도 높은 기성제품부터 보여드려요";
+}
+
 export function ShoppingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedChildId = useAppStore((state) => state.selectedChildId);
   const initialQuery = searchParams.get("q") ?? "";
   const initialCategory = parseProductSearchCategory(searchParams.get("category"));
   const initialSource = parseProductSearchSource(searchParams.get("source"));
+  const initialSortMode = parseProductSearchSortMode(searchParams.get("sort"));
   const [query, setQuery] = useState(initialQuery);
   const [category, setCategory] = useState<ProductSearchCategory>(initialCategory);
   const [source, setSource] = useState<ProductSearchSource>(initialSource);
+  const [sortMode, setSortMode] = useState<ProductSearchSortMode>(initialSortMode);
   const [filters, setFilters] = useState<ProductSearchFilters>(() =>
     getFiltersFromSearchParams(searchParams)
   );
@@ -136,6 +157,7 @@ export function ShoppingPage() {
     setQuery(searchParams.get("q") ?? "");
     setCategory(parseProductSearchCategory(searchParams.get("category")));
     setSource(parseProductSearchSource(searchParams.get("source")));
+    setSortMode(parseProductSearchSortMode(searchParams.get("sort")));
     setFilters(getFiltersFromSearchParams(searchParams));
   }, [searchParams]);
 
@@ -161,6 +183,7 @@ export function ShoppingPage() {
     source,
     mealContext,
     filters,
+    sortMode,
     limit: 20
   };
   const productSearch = useProductSearch(searchRequest, Boolean(normalizedQuery));
@@ -180,11 +203,29 @@ export function ShoppingPage() {
         query: normalized,
         category: nextCategory,
         source: nextSource,
+        sortMode,
         childId: selectedChild?.id,
         filters,
         mealContext: nextSource === "meal_result" ? mealContext : null
       })
     );
+  }
+
+  function handleChangeSortMode(nextSortMode: ProductSearchSortMode) {
+    setSortMode(nextSortMode);
+    if (query.trim()) {
+      setSearchParams(
+        writeSearchParams({
+          query: normalizedQuery,
+          category,
+          source,
+          sortMode: nextSortMode,
+          childId: selectedChild?.id,
+          filters,
+          mealContext
+        })
+      );
+    }
   }
 
   function handleChangeFilters(nextFilters: ProductSearchFilters) {
@@ -195,6 +236,7 @@ export function ShoppingPage() {
           query: normalizedQuery,
           category,
           source,
+          sortMode,
           childId: selectedChild?.id,
           filters: nextFilters,
           mealContext
@@ -220,8 +262,9 @@ export function ShoppingPage() {
               ? `${mealResultTitleBase}${getKoreanTopicJoiner(mealResultTitleBase)} 비슷한 기성제품`
               : `"${normalizedQuery}" 검색 결과`
           }
-          subtitle="가격 낮은 순으로 보여드려요"
+          subtitle={getShoppingResultSubtitle(sortMode)}
           query={normalizedQuery}
+          sortMode={sortMode}
           filters={filters}
           items={productSearch.data?.items ?? []}
           isLoading={productSearch.isLoading || productSearch.isFetching}
@@ -231,6 +274,7 @@ export function ShoppingPage() {
           source={source}
           mealContext={mealContext}
           onSubmitSearch={(nextQuery) => commitSearch(nextQuery, category, source)}
+          onChangeSortMode={handleChangeSortMode}
           onChangeFilters={handleChangeFilters}
           onRetry={() => {
             void productSearch.refetch();

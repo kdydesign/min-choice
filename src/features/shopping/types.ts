@@ -14,6 +14,10 @@ export const PRODUCT_SEARCH_SOURCES = ["manual", "child_suggestion", "meal_resul
 
 export type ProductSearchSource = (typeof PRODUCT_SEARCH_SOURCES)[number];
 
+export const PRODUCT_SEARCH_SORT_MODES = ["recommended", "price_low"] as const;
+
+export type ProductSearchSortMode = (typeof PRODUCT_SEARCH_SORT_MODES)[number];
+
 export interface ProductSearchFilters {
   onlyNaverPay: boolean;
   excludeUsed: boolean;
@@ -47,6 +51,7 @@ export interface ProductSearchRequest {
   source: ProductSearchSource;
   mealContext?: MealProductSearchContext | null;
   filters: ProductSearchFilters;
+  sortMode: ProductSearchSortMode;
   limit: number;
 }
 
@@ -63,6 +68,7 @@ export interface ProductSearchItem {
   price: number;
   displayPrice: string;
   priceRank: number;
+  relevanceScore: number;
   allergyKeywordMatches: string[];
   warningBadges: string[];
   fetchedAt: string;
@@ -97,6 +103,8 @@ export const DEFAULT_PRODUCT_SEARCH_FILTERS: ProductSearchFilters = {
   minPrice: null,
   maxPrice: null
 };
+
+export const DEFAULT_PRODUCT_SEARCH_SORT_MODE: ProductSearchSortMode = "recommended";
 
 export const PRODUCT_SEARCH_NOTICES: ProductSearchNotice[] = [
   "가격은 검색 시점 기준이며 실제 구매 가격, 배송비, 옵션가는 쇼핑몰에서 달라질 수 있어요.",

@@ -48,9 +48,10 @@ export function ProductFilterChips({
             type="button"
             className={`shopping-chip ${filters.onlyNaverPay ? "is-active" : ""}`}
             disabled={disabled}
+            aria-label="네이버페이 상품만 보기"
             onClick={() => onChangeFilters({ ...filters, onlyNaverPay: !filters.onlyNaverPay })}
           >
-            네이버페이
+            네이버페이 상품
           </button>
           <button
             type="button"
@@ -64,24 +65,6 @@ export function ProductFilterChips({
             }
           >
             알레르기 키워드 제외
-          </button>
-          <button
-            type="button"
-            className={`shopping-chip ${
-              filters.excludeUsed && filters.excludeRental && filters.excludeOverseas ? "is-active" : ""
-            }`}
-            disabled={disabled}
-            onClick={() => {
-              const nextValue = !(filters.excludeUsed && filters.excludeRental && filters.excludeOverseas);
-              onChangeFilters({
-                ...filters,
-                excludeUsed: nextValue,
-                excludeRental: nextValue,
-                excludeOverseas: nextValue
-              });
-            }}
-          >
-            중고/렌탈/해외직구 제외
           </button>
         </div>
       ) : null}

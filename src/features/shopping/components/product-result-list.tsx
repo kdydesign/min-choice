@@ -29,7 +29,7 @@ export function ProductResultList({
     return (
       <ProgressLayerDialog
         title="상품을 검색 중이에요"
-        description="가격 낮은 순 결과를 정리하고 있어요."
+        description="조건에 맞는 결과를 정리하고 있어요."
         className="shopping-search-progress-layer"
       />
     );
@@ -43,12 +43,9 @@ export function ProductResultList({
     return <ProductEmptyState />;
   }
 
-  const visibleItems = items.filter((item) => item.warningBadges.length === 0);
-  const warningItems = items.filter((item) => item.warningBadges.length > 0);
-
   return (
     <section className="product-result-list" aria-label="상품 검색 결과">
-      {visibleItems.map((item) => (
+      {items.map((item) => (
         <ProductResultCard
           key={item.id}
           item={item}
@@ -57,22 +54,6 @@ export function ProductResultList({
           mealContext={mealContext}
         />
       ))}
-
-      {warningItems.length > 0 ? (
-        <div className="product-result-warning-group">
-          <p>알레르기 키워드가 포함된 상품</p>
-          {warningItems.map((item) => (
-            <ProductResultCard
-              key={item.id}
-              item={item}
-              childId={childId}
-              source={source}
-              mealContext={mealContext}
-              variant="warning"
-            />
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }

@@ -10,7 +10,7 @@ import {
   normalizeNaverProduct,
   type NormalizedProduct
 } from "./utils/normalize-product.ts";
-import { rankProducts } from "./utils/rank-products.ts";
+import { rankProducts, type ProductSearchSortMode } from "./utils/rank-products.ts";
 
 type ProductSearchCategory = "all" | "baby_food" | "toddler_food" | "baby_side_dish" | "snack";
 type ProductSearchSource = "manual" | "child_suggestion" | "meal_result";
@@ -38,6 +38,7 @@ interface ProductSearchRequest {
     originMenuName?: string | null;
   } | null;
   filters: ProductSearchFilters;
+  sortMode: ProductSearchSortMode;
   limit: number;
 }
 
@@ -56,6 +57,7 @@ interface ProductSearchResultRow {
   product_url: string;
   mall_name: string | null;
   price: number;
+  relevance_score: number | null;
   price_rank: number | null;
   allergy_keyword_matches_json: unknown;
   warning_badges_json: unknown;
@@ -81,6 +83,7 @@ const PRODUCT_SEARCH_NOTICES = [
 ];
 const PRODUCT_SEARCH_CATEGORIES = ["all", "baby_food", "toddler_food", "baby_side_dish", "snack"];
 const PRODUCT_SEARCH_SOURCES = ["manual", "child_suggestion", "meal_result"];
+const PRODUCT_SEARCH_SORT_MODES = ["recommended", "price_low"];
 const QUERY_PRESERVE_KEYWORDS = ["이유식", "유아식", "아기", "아이반찬", "아기반찬", "퓨레"];
 const CATEGORY_SUFFIX: Record<ProductSearchCategory, string> = {
   all: "이유식",
@@ -161,6 +164,7 @@ function parseRequest(value: unknown): ProductSearchRequest {
 
   const category = readString(value.category);
   const source = readString(value.source);
+  const sortMode = readString(value.sortMode);
   const filters = isRecord(value.filters) ? value.filters : {};
   const mealContext = isRecord(value.mealContext) ? value.mealContext : null;
 
@@ -172,6 +176,9 @@ function parseRequest(value: unknown): ProductSearchRequest {
     childId: readString(value.childId) || null,
     useChildContext: readBoolean(value.useChildContext, false),
     source: PRODUCT_SEARCH_SOURCES.includes(source) ? (source as ProductSearchSource) : "manual",
+    sortMode: PRODUCT_SEARCH_SORT_MODES.includes(sortMode)
+      ? (sortMode as ProductSearchSortMode)
+      : "recommended",
     mealContext: mealContext
       ? {
           mealPlanId: readString(mealContext.mealPlanId) || null,
@@ -267,6 +274,7 @@ function mapResultRow(row: ProductSearchResultRow) {
     price: row.price,
     displayPrice: formatDisplayPrice(row.price),
     priceRank: row.price_rank ?? 1,
+    relevanceScore: row.relevance_score ?? 0,
     allergyKeywordMatches: readStringArray(row.allergy_keyword_matches_json),
     warningBadges: readStringArray(row.warning_badges_json),
     fetchedAt: row.fetched_at
@@ -282,7 +290,7 @@ async function loadCachedResponse(
   const { data, error } = await adminClient
     .from("product_search_queries")
     .select(
-      "id, raw_query, normalized_query, provider, created_at, product_search_results(id, provider, provider_product_id, title, image_url, product_url, mall_name, price, price_rank, allergy_keyword_matches_json, warning_badges_json, fetched_at, is_hidden_by_allergy_filter)"
+      "id, raw_query, normalized_query, provider, created_at, product_search_results(id, provider, provider_product_id, title, image_url, product_url, mall_name, price, relevance_score, price_rank, allergy_keyword_matches_json, warning_badges_json, fetched_at, is_hidden_by_allergy_filter)"
     )
     .eq("cache_key", cacheKey)
     .gte("created_at", cutoff)
@@ -394,7 +402,7 @@ async function saveSearchResult(input: {
     .from("product_search_results")
     .insert(resultPayload)
     .select(
-      "id, provider, provider_product_id, title, image_url, product_url, mall_name, price, price_rank, allergy_keyword_matches_json, warning_badges_json, fetched_at, is_hidden_by_allergy_filter"
+      "id, provider, provider_product_id, title, image_url, product_url, mall_name, price, relevance_score, price_rank, allergy_keyword_matches_json, warning_badges_json, fetched_at, is_hidden_by_allergy_filter"
     );
 
   if (resultError) {
@@ -459,6 +467,7 @@ serve(async (request) => {
       provider: "naver",
       normalizedQuery,
       category: requestBody.category,
+      sortMode: requestBody.sortMode,
       filters: requestBody.filters,
       allergyKeywords: childContext?.allergies ?? [],
       limit: requestBody.limit
@@ -504,7 +513,8 @@ serve(async (request) => {
             excludeMatches: requestBody.filters.excludeAllergyKeywordMatches
           })
         )
-        .filter((product) => applyPriceFilter(product, requestBody.filters))
+        .filter((product) => applyPriceFilter(product, requestBody.filters)),
+      requestBody.sortMode
     );
     const responseProducts = products
       .filter((product) => !product.isHiddenByAllergyFilter)
@@ -545,6 +555,7 @@ serve(async (request) => {
           price: product.price,
           displayPrice: formatDisplayPrice(product.price),
           priceRank: product.priceRank,
+          relevanceScore: product.relevanceScore,
           allergyKeywordMatches: product.allergyKeywordMatches,
           warningBadges: product.warningBadges,
           fetchedAt: product.fetchedAt
