@@ -54,19 +54,32 @@ export function MealProductSearchAction({
     navigate(`/shopping?${params.toString()}`);
   }
 
+  const ariaLabel = `${searchLink.ctaLabel} 검색 화면으로 이동`;
+
   return (
     <button
       type="button"
       className="meal-product-search-action"
       disabled={disabled}
       onClick={handleClick}
+      aria-label={ariaLabel}
     >
       <span className="meal-product-search-action-main">
-        <AppIcon name="navShopping" size={16} />
-        <span>{searchLink.ctaLabel}</span>
+        <span className="meal-product-search-action-icon" aria-hidden="true">
+          <AppIcon name="navShopping" size={18} />
+        </span>
+        <span className="meal-product-search-action-label">{searchLink.ctaLabel}</span>
       </span>
-      <span className="meal-product-search-action-subtitle">
-        직접 만들기 어렵다면 비슷한 기성제품을 찾아볼 수 있어요
+      <span className="meal-product-search-action-chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path
+            d="M9 5L15 12L9 19"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </span>
     </button>
   );

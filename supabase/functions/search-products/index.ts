@@ -506,7 +506,9 @@ serve(async (request) => {
         )
         .filter((product) => applyPriceFilter(product, requestBody.filters))
     );
-    const visibleProducts = products.filter((product) => !product.isHiddenByAllergyFilter);
+    const responseProducts = products
+      .filter((product) => !product.isHiddenByAllergyFilter)
+      .slice(0, requestBody.limit);
     const saved = await saveSearchResult({
       adminClient: clients.adminClient,
       request: requestBody,
@@ -516,7 +518,7 @@ serve(async (request) => {
       isAnonymousUser:
         "is_anonymous" in userData.user ? Boolean(userData.user.is_anonymous) : false,
       childContext,
-      products
+      products: responseProducts
     });
     const savedRows = saved?.resultRows ?? [];
 
@@ -527,7 +529,7 @@ serve(async (request) => {
       fetchedAt: saved?.createdAt ?? fetchedAt,
       cacheTtlSeconds: CACHE_TTL_SECONDS,
       notices: PRODUCT_SEARCH_NOTICES,
-      items: visibleProducts.map((product) => {
+      items: responseProducts.map((product) => {
         const savedRow = savedRows.find(
           (row) => row.provider_product_id === product.providerProductId
         );

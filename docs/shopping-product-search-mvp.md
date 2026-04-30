@@ -350,9 +350,9 @@
 - endpoint: `https://openapi.naver.com/v1/search/shop.json`
 - HTTP method: `GET`
 - `query`: 검색어
-- `display`: 기본 20, 최대 100
+- `display`: 1차 MVP에서는 후처리 품질을 위해 50~100개 범위로 넉넉히 조회
 - `start`: 기본 1
-- `sort=asc`: 가격 낮은 순
+- `sort=sim`: 정확도순. 가격 낮은 순은 베베초이스 서버 후처리에서 적용
 - `filter=naverpay`: 네이버페이 연동 상품만 보기 옵션
 - `exclude=used:rental:cbshop`: 중고 / 렌탈 / 해외직구 / 구매대행 제외
 
@@ -440,14 +440,15 @@ search-products
 3. normalizedQuery 생성
 4. cache key 계산
 5. 유효 캐시가 있으면 cached response 반환
-6. 캐시가 없으면 `naver-shopping.ts` 호출
+6. 캐시가 없으면 `naver-shopping.ts`에서 `sort=sim`으로 넉넉히 조회
 7. raw item 정규화
-8. 제외 우선 키워드 제거
-9. 포함 우선 키워드와 category 적합성으로 relevance score 계산
-10. 알레르기 키워드 매칭
-11. 가격 낮은 순과 relevance score를 함께 반영해 rank 계산
-12. query / result / price snapshot 저장
-13. notices와 items 응답
+8. 상품명 / 판매처 / 카테고리 텍스트를 합쳐 HTML 태그 제거 후 정규화
+9. 주방용품 / 식기 / 완구 / 도서 / 생활용품 및 비식품 키워드 제거
+10. 이유식 / 유아식 / 아기반찬 / 반찬 / 죽 / 무른밥 / 큐브 등 식품 signal과 신뢰 브랜드로 relevance score 계산
+11. 알레르기 키워드 매칭
+12. relevance score 높은 순, 동점이면 가격 낮은 순으로 rank 계산
+13. query / result / price snapshot 저장
+14. notices와 items 응답
 
 ## 13. 프론트엔드 도메인 설계
 
@@ -879,7 +880,8 @@ meal result source에서 추가 기록:
 
 ## 20. QA 시나리오
 
-- 수동 검색어 `소고기 이유식`으로 검색하면 가격 낮은 순 결과가 표시되는가
+- 수동 검색어 `소고기 이유식`으로 검색하면 관련도 높은 식품 결과 중 가격 낮은 순 결과가 표시되는가
+- `아기반찬` 검색에서 그릇 / 식기 / 용기 / 책 / 조리도구가 제외되는가
 - `onlyNaverPay=true`일 때 네이버페이 필터가 요청에 반영되는가
 - `exclude=used:rental:cbshop` 조건이 네이버 요청에 반영되는가
 - 선택된 아이가 서아, 13개월, 알레르기 달걀 / 우유일 때 추천 검색어 예시가 표시되는가

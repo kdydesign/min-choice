@@ -1,5 +1,8 @@
+import type { MouseEvent } from "react";
 import { logProductClick } from "../api";
 import type { MealProductSearchContext, ProductSearchItem, ProductSearchSource } from "../types";
+
+const OUTBOUND_NAVIGATION_FALLBACK_MS = 250;
 
 interface ProductResultCardProps {
   item: ProductSearchItem;
@@ -16,7 +19,24 @@ export function ProductResultCard({
   mealContext = null,
   variant = item.warningBadges.length > 0 ? "warning" : "default"
 }: ProductResultCardProps) {
-  function handleClick() {
+  const isWarning = variant === "warning";
+  const displayPrice = item.displayPrice || "가격 정보 없음";
+
+  function handlePriceLinkClick(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+
+    let didNavigate = false;
+    const navigateToProduct = () => {
+      if (didNavigate) {
+        return;
+      }
+
+      didNavigate = true;
+      window.location.assign(item.productUrl);
+    };
+
+    const fallbackTimer = window.setTimeout(navigateToProduct, OUTBOUND_NAVIGATION_FALLBACK_MS);
+
     void logProductClick({
       productResultId: item.id,
       childId,
@@ -25,11 +45,11 @@ export function ProductResultCard({
       mealPlanItemId: mealContext?.mealPlanItemId ?? null,
       provider: item.provider,
       outboundUrl: item.productUrl
+    }).finally(() => {
+      window.clearTimeout(fallbackTimer);
+      navigateToProduct();
     });
   }
-
-  const isWarning = variant === "warning";
-  const displayPrice = item.displayPrice || "가격 정보 없음";
 
   return (
     <article className={`product-result-card ${isWarning ? "is-warning" : ""}`}>
@@ -62,9 +82,8 @@ export function ProductResultCard({
         <a
           className="product-price-link"
           href={item.productUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={handleClick}
+          rel="external noopener noreferrer"
+          onClick={handlePriceLinkClick}
           aria-label={`${item.title} 외부 상품 페이지에서 가격 확인하기`}
         >
           가격 확인하기

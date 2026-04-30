@@ -16,12 +16,16 @@ export function ProductResultFilterChips({
 
   return (
     <div className="shopping-result-filter-row" aria-label="상품 결과 필터">
-      <button type="button" className="shopping-result-filter-chip is-active" aria-pressed="true">
+      <button
+        type="button"
+        className="shopping-result-filter-chip is-sort-active"
+        aria-pressed="true"
+      >
         가격 낮은 순
       </button>
       <button
         type="button"
-        className={`shopping-result-filter-chip ${filters.onlyNaverPay ? "is-active" : ""}`}
+        className={`shopping-result-filter-chip ${filters.onlyNaverPay ? "is-selected" : ""}`}
         disabled={disabled}
         aria-pressed={filters.onlyNaverPay}
         onClick={() => onChangeFilters({ ...filters, onlyNaverPay: !filters.onlyNaverPay })}
@@ -31,7 +35,7 @@ export function ProductResultFilterChips({
       <button
         type="button"
         className={`shopping-result-filter-chip ${
-          filters.excludeAllergyKeywordMatches ? "is-active" : ""
+          filters.excludeAllergyKeywordMatches ? "is-selected" : ""
         }`}
         disabled={disabled}
         aria-pressed={filters.excludeAllergyKeywordMatches}
@@ -46,7 +50,7 @@ export function ProductResultFilterChips({
       </button>
       <button
         type="button"
-        className={`shopping-result-filter-chip ${excludeNonFoodSources ? "is-active" : ""}`}
+        className={`shopping-result-filter-chip ${excludeNonFoodSources ? "is-selected" : ""}`}
         disabled={disabled}
         aria-pressed={excludeNonFoodSources}
         onClick={() =>

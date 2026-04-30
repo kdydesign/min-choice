@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { ProgressLayerDialog } from "../../../components/progress-layer-dialog";
 
 const STEP_LABELS = {
   normalizing: "재료 정리",
@@ -79,43 +79,35 @@ export function MealGenerationProgress({
   title = "식단 생성 중",
   className
 }: MealGenerationProgressProps) {
-  const titleId = useId();
-
   return (
-    <div
+    <ProgressLayerDialog
+      title={title}
       className={`meal-generation-progress-overlay${className ? ` ${className}` : ""}`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-live="polite"
     >
-      <section className="meal-generation-progress-popup">
-        <h3 id={titleId}>{title}</h3>
-        <span className="sr-only">{STEP_LABELS[stage]} 단계가 진행 중입니다.</span>
+      <span className="sr-only">{STEP_LABELS[stage]} 단계가 진행 중입니다.</span>
 
-        <div className="meal-generation-progress-track" aria-hidden="true">
-          {STEP_ORDER.map((step, index) => {
-            const stepState = getStepState(stage, step);
+      <div className="meal-generation-progress-track" aria-hidden="true">
+        {STEP_ORDER.map((step, index) => {
+          const stepState = getStepState(stage, step);
 
-            return (
-              <div key={step} className="meal-generation-progress-step-group">
-                <div className={`meal-generation-progress-step is-${stepState}`}>
-                  <div className="meal-generation-progress-step-circle">
-                    {stepState === "complete" ? <CheckIcon /> : <SpinnerIcon />}
-                  </div>
-                  <span>{STEP_LABELS[step]}</span>
+          return (
+            <div key={step} className="meal-generation-progress-step-group">
+              <div className={`meal-generation-progress-step is-${stepState}`}>
+                <div className="meal-generation-progress-step-circle">
+                  {stepState === "complete" ? <CheckIcon /> : <SpinnerIcon />}
                 </div>
-
-                {index < STEP_ORDER.length - 1 ? (
-                  <div className="meal-generation-progress-arrow">
-                    <ArrowIcon />
-                  </div>
-                ) : null}
+                <span>{STEP_LABELS[step]}</span>
               </div>
-            );
-          })}
-        </div>
-      </section>
-    </div>
+
+              {index < STEP_ORDER.length - 1 ? (
+                <div className="meal-generation-progress-arrow">
+                  <ArrowIcon />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </ProgressLayerDialog>
   );
 }

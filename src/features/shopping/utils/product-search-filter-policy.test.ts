@@ -3,14 +3,25 @@ import {
   buildCacheKey,
   PRODUCT_SEARCH_FILTER_POLICY_VERSION
 } from "../../../../supabase/functions/search-products/utils/cache-key.ts";
-import { isFoodProduct } from "../../../../supabase/functions/search-products/utils/filter-product.ts";
+import {
+  getBabyFoodRelevanceScore,
+  isFoodProduct,
+  normalizeShoppingTitle
+} from "../../../../supabase/functions/search-products/utils/filter-product.ts";
+import {
+  getNaverShoppingDisplayLimit,
+  NaverShoppingProvider,
+  NAVER_SHOPPING_SEARCH_SORT
+} from "../../../../supabase/functions/search-products/providers/naver-shopping.ts";
+import { sortBabyFoodShoppingResults } from "../../../../supabase/functions/search-products/utils/rank-products.ts";
 import type { NormalizedProduct } from "../../../../supabase/functions/search-products/utils/normalize-product.ts";
 
 function product(
   title: string,
   categories: Partial<
     Pick<NormalizedProduct, "category1" | "category2" | "category3" | "category4">
-  > = {}
+  > = {},
+  overrides: Partial<Pick<NormalizedProduct, "mallName" | "brand" | "maker" | "price">> = {}
 ): NormalizedProduct {
   return {
     provider: "naver",
@@ -19,11 +30,11 @@ function product(
     normalizedTitle: title.toLowerCase(),
     imageUrl: "https://example.com/image.jpg",
     productUrl: "https://example.com/product",
-    mallName: "테스트몰",
-    price: 1000,
+    mallName: overrides.mallName ?? "테스트몰",
+    price: overrides.price ?? 1000,
     highPrice: null,
-    brand: "",
-    maker: "",
+    brand: overrides.brand ?? "",
+    maker: overrides.maker ?? "",
     category1: categories.category1 ?? "식품",
     category2: categories.category2 ?? "가공식품",
     category3: categories.category3 ?? "",
@@ -40,6 +51,10 @@ function product(
 }
 
 describe("product search filter policy", () => {
+  it("normalizes shopping text before filtering and scoring", () => {
+    expect(normalizeShoppingTitle("<b>베베쿡</b>&amp; 이유식")).toBe("베베쿡 & 이유식");
+  });
+
   it("removes cooking devices, tools, and packing supplies even when baby food keywords are present", () => {
     const excludedTitles = [
       "이유식 죽제조기 콩물 건강식 가정용 자동 전기 두유 기계",
@@ -48,7 +63,13 @@ describe("product search filter policy", () => {
       "키친아트 이유식 믹서기",
       "이유식 용기 스티커띠지 제작",
       "이유식 아이스팩 추가",
-      "어브로드마켓 바나나 커터 유아식도구"
+      "어브로드마켓 바나나 커터 유아식도구",
+      "아기 도자기 그릇",
+      "이유식 용기",
+      "유아 식판",
+      "아기 스푼 포크 세트",
+      "이유식 책",
+      "아기반찬 보관용기"
     ];
 
     for (const title of excludedTitles) {
@@ -73,12 +94,81 @@ describe("product search filter policy", () => {
       "남양 아이꼬야 맘스쿠킹 이유식 소고기와 두부 진밥",
       "매일유업 맘마밀 안심이유식 가리비와두부",
       "고구마 바나나 퓨레",
-      "브로콜리 두부 아기반찬"
+      "브로콜리 두부 아기반찬",
+      "베베쿡 아기반찬",
+      "짱죽 완료기 이유식",
+      "유아식 반찬 세트",
+      "소고기 애호박 무른밥"
     ];
 
     for (const title of includedTitles) {
       expect(isFoodProduct(product(title)), title).toBe(true);
     }
+  });
+
+  it("scores domain-specific baby food products above generic food products", () => {
+    const trustedBabyFood = product("베베쿡 한우 아기반찬 완료기 세트", {}, { price: 7000 });
+    const genericFood = product("소고기 국산 다짐육", {}, { price: 2000 });
+
+    expect(getBabyFoodRelevanceScore(trustedBabyFood)).toBeGreaterThan(
+      getBabyFoodRelevanceScore(genericFood)
+    );
+  });
+
+  it("sorts by relevance first and then by lower price", () => {
+    const sorted = sortBabyFoodShoppingResults([
+      product("베베쿡 아기반찬", {}, { price: 6500 }),
+      product("소고기 다짐육", {}, { price: 1000 }),
+      product("베베쿡 아기반찬", {}, { price: 3500 })
+    ]);
+
+    expect(sorted[0].title).toBe("베베쿡 아기반찬");
+    expect(sorted[0].price).toBe(3500);
+    expect(sorted[1].title).toBe("베베쿡 아기반찬");
+    expect(sorted[1].price).toBe(6500);
+    expect(sorted[2].title).toBe("소고기 다짐육");
+  });
+});
+
+describe("naver shopping provider policy", () => {
+  it("requests similarity sort with a wider display window", async () => {
+    const fetchCalls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    const mockedFetch: typeof fetch = async (input) => {
+      fetchCalls.push(String(input));
+      return new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    globalThis.fetch = mockedFetch;
+
+    try {
+      const provider = new NaverShoppingProvider("client-id", "client-secret");
+
+      await provider.search({
+        query: "아기반찬",
+        limit: 20,
+        onlyNaverPay: false,
+        excludeUsed: true,
+        excludeRental: true,
+        excludeOverseas: true
+      });
+
+      const requestUrl = new URL(fetchCalls[0]);
+      expect(requestUrl.searchParams.get("sort")).toBe(NAVER_SHOPPING_SEARCH_SORT);
+      expect(requestUrl.searchParams.get("display")).toBe("60");
+      expect(requestUrl.searchParams.get("exclude")).toBe("used:rental:cbshop");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("keeps naver display between 50 and 100", () => {
+    expect(getNaverShoppingDisplayLimit(10)).toBe(50);
+    expect(getNaverShoppingDisplayLimit(20)).toBe(60);
+    expect(getNaverShoppingDisplayLimit(80)).toBe(100);
   });
 });
 

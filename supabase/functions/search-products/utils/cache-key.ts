@@ -7,7 +7,7 @@ export interface CacheKeyInput {
   limit: number;
 }
 
-export const PRODUCT_SEARCH_FILTER_POLICY_VERSION = "filter-policy-v2";
+export const PRODUCT_SEARCH_FILTER_POLICY_VERSION = "filter-policy-v3";
 
 export function buildCacheKey(input: CacheKeyInput) {
   const normalizedFilters = Object.fromEntries(

@@ -1,19 +1,26 @@
-import { scoreProductRelevance } from "./filter-product.ts";
+import { getBabyFoodRelevanceScore } from "./filter-product.ts";
 import type { NormalizedProduct } from "./normalize-product.ts";
 
-export function rankProducts(products: NormalizedProduct[]) {
+function compareProductPrice(left: NormalizedProduct, right: NormalizedProduct) {
+  const leftPrice = left.price > 0 ? left.price : Number.POSITIVE_INFINITY;
+  const rightPrice = right.price > 0 ? right.price : Number.POSITIVE_INFINITY;
+  return leftPrice - rightPrice;
+}
+
+export function sortBabyFoodShoppingResults(products: NormalizedProduct[]) {
   return [...products]
     .map((product) => ({
       ...product,
-      relevanceScore: scoreProductRelevance(product)
+      relevanceScore: getBabyFoodRelevanceScore(product)
     }))
     .sort((left, right) => {
       if (right.relevanceScore !== left.relevanceScore) {
         return right.relevanceScore - left.relevanceScore;
       }
 
-      if (left.price !== right.price) {
-        return left.price - right.price;
+      const priceComparison = compareProductPrice(left, right);
+      if (priceComparison !== 0) {
+        return priceComparison;
       }
 
       if (Boolean(right.imageUrl) !== Boolean(left.imageUrl)) {
@@ -30,4 +37,8 @@ export function rankProducts(products: NormalizedProduct[]) {
       ...product,
       priceRank: index + 1
     }));
+}
+
+export function rankProducts(products: NormalizedProduct[]) {
+  return sortBabyFoodShoppingResults(products);
 }

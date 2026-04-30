@@ -1,4 +1,4 @@
-import { LoadingState } from "../../../components/loading-state";
+import { ProgressLayerDialog } from "../../../components/progress-layer-dialog";
 import { ProductEmptyState } from "./product-empty-state";
 import { ProductErrorState } from "./product-error-state";
 import { ProductResultCard } from "./product-result-card";
@@ -27,10 +27,10 @@ export function ProductResultList({
 }: ProductResultListProps) {
   if (isLoading) {
     return (
-      <LoadingState
+      <ProgressLayerDialog
         title="상품을 검색 중이에요"
         description="가격 낮은 순 결과를 정리하고 있어요."
-        lines={4}
+        className="shopping-search-progress-layer"
       />
     );
   }

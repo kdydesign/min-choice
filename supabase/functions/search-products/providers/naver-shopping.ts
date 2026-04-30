@@ -13,6 +13,16 @@ interface NaverShoppingResponse {
   items?: NaverShoppingItem[];
 }
 
+export const NAVER_SHOPPING_SEARCH_SORT = "sim";
+
+const MIN_NAVER_SHOPPING_DISPLAY = 50;
+const MAX_NAVER_SHOPPING_DISPLAY = 100;
+
+export function getNaverShoppingDisplayLimit(limit: number) {
+  const requested = Number.isFinite(limit) ? Math.round(limit) : MIN_NAVER_SHOPPING_DISPLAY;
+  return Math.min(Math.max(requested * 3, MIN_NAVER_SHOPPING_DISPLAY), MAX_NAVER_SHOPPING_DISPLAY);
+}
+
 export class NaverShoppingProvider {
   constructor(
     private readonly clientId: string,
@@ -30,9 +40,9 @@ export class NaverShoppingProvider {
     const timeoutId = setTimeout(() => abortController.abort(), 8000);
 
     url.searchParams.set("query", input.query);
-    url.searchParams.set("display", String(Math.min(Math.max(input.limit, 1), 100)));
+    url.searchParams.set("display", String(getNaverShoppingDisplayLimit(input.limit)));
     url.searchParams.set("start", "1");
-    url.searchParams.set("sort", "asc");
+    url.searchParams.set("sort", NAVER_SHOPPING_SEARCH_SORT);
 
     if (exclude.length > 0) {
       url.searchParams.set("exclude", exclude.join(":"));
